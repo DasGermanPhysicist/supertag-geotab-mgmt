@@ -3,15 +3,16 @@ import { KeyRound } from 'lucide-react';
 
 interface LoginFormProps {
   username: string;
-  onLogin: (password: string) => void;
+  onLogin: (username: string, password: string) => void;
 }
 
-export function LoginForm({ username, onLogin }: LoginFormProps) {
+export function LoginForm({ username: defaultUsername, onLogin }: LoginFormProps) {
+  const [username, setUsername] = useState(defaultUsername);
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(password);
+    onLogin(username, password);
   };
 
   return (
@@ -24,12 +25,14 @@ export function LoginForm({ username, onLogin }: LoginFormProps) {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Username</label>
+              <label className="block text-sm font-medium text-gray-700">Email</label>
               <input
-                type="text"
+                type="email"
                 value={username}
-                disabled
-                className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md"
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter your email address"
               />
             </div>
             <div>

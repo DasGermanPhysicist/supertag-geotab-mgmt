@@ -7,11 +7,10 @@ import { AuthState, SuperTag, Site, Organization } from './types';
 import { Building2 } from 'lucide-react';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
-const DEFAULT_USERNAME = 'dominik.pilat@link-labs.com';
 
 function App() {
   const [auth, setAuth] = useState<AuthState>({
-    username: DEFAULT_USERNAME,
+    username: '',
     isAuthenticated: false,
   });
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -170,11 +169,11 @@ function App() {
     }
   };
 
-  const handleLogin = async (password: string) => {
+  const handleLogin = async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     
-    const authHeader = 'Basic ' + btoa(`${auth.username}:${password}`);
+    const authHeader = 'Basic ' + btoa(`${username}:${password}`);
     
     try {
       // First fetch organizations to verify credentials
@@ -190,7 +189,7 @@ function App() {
 
       const orgsData = await response.json();
       setOrganizations(orgsData);
-      setAuth(prev => ({ ...prev, isAuthenticated: true, token: authHeader }));
+      setAuth(prev => ({ ...prev, username, isAuthenticated: true, token: authHeader }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {

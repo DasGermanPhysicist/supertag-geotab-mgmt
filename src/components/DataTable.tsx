@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2 } from 'lucide-react';
+import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, Upload } from 'lucide-react';
 import { SuperTag, ColumnVisibility } from '../types';
+import { BulkOperationsModal } from './BulkOperationsModal';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
 const MANDATORY_COLUMNS = ['name', 'geotabSerialNumber', 'macAddress'];
@@ -24,31 +25,45 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   const [showSuperTagsOnly, setShowSuperTagsOnly] = useState(false);
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
   const [showGeotabModal, setShowGeotabModal] = useState(false);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkMode, setBulkMode] = useState<'add' | 'delete'>('add');
   const [newGeotabSerial, setNewGeotabSerial] = useState('');
 
-  const handleAddGeotab = async () => {
-    if (!selectedRow || !newGeotabSerial || !auth.token) {
-      console.error('Missing required data for add:', { 
-        hasSelectedRow: !!selectedRow, 
-        hasNewGeotabSerial: !!newGeotabSerial, 
-        hasAuthToken: !!auth.token,
-        selectedRow,
-        macAddress: selectedRow?.macAddress
+  useEffect(() => {
+    const allColumns = new Set([...MANDATORY_COLUMNS]);
+    data.forEach(item => {
+      Object.keys(item).forEach(key => {
+        allColumns.add(key);
       });
-      return;
-    }
+    });
+    
+    const columnsArray = Array.from(allColumns);
+    MANDATORY_COLUMNS.forEach((col, index) => {
+      const currentIndex = columnsArray.indexOf(col);
+      if (currentIndex !== -1) {
+        columnsArray.splice(currentIndex, 1);
+        columnsArray.splice(index, 0, col);
+      }
+    });
+    
+    setAvailableColumns(columnsArray);
+    setColumnOrder(columnsArray);
+    
+    const initialVisibility = columnsArray.reduce((acc, col) => ({
+      ...acc,
+      [col]: MANDATORY_COLUMNS.includes(col) || true
+    }), {});
+    setColumnVisibility(initialVisibility);
+  }, [data]);
+
+  const handleAddGeotab = async () => {
+    if (!selectedRow || !newGeotabSerial || !auth.token) return;
 
     try {
+      // Use macAddress instead of macId
       const encodedMacId = encodeURIComponent(selectedRow.macAddress);
       const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/addGeoTab?macID=${encodedMacId}&geoTabSerialNumber=${newGeotabSerial}`;
       
-      console.log('Adding Geotab:', {
-        url,
-        method: 'POST',
-        macAddress: selectedRow.macAddress,
-        newGeotabSerial
-      });
-
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -56,15 +71,9 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
         }
       });
 
-      const responseText = await response.text();
-      console.log('Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: responseText
-      });
-
       if (!response.ok) {
-        throw new Error(`Failed to add Geotab: ${response.status} ${response.statusText} - ${responseText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to add Geotab: ${errorText}`);
       }
 
       onDataChange();
@@ -72,36 +81,17 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       setNewGeotabSerial('');
       setSelectedRow(null);
     } catch (error) {
-      console.error('Error adding Geotab:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        selectedRow,
-        macAddress: selectedRow?.macAddress,
-        newGeotabSerial
-      });
+      console.error('Error adding Geotab:', error);
     }
   };
 
   const handleDeleteGeotab = async () => {
-    if (!selectedRow || !auth.token) {
-      console.error('Missing required data for delete:', { 
-        hasSelectedRow: !!selectedRow, 
-        hasAuthToken: !!auth.token,
-        selectedRow,
-        macAddress: selectedRow?.macAddress
-      });
-      return;
-    }
+    if (!selectedRow || !auth.token) return;
 
     try {
+      // Use macAddress instead of macId
       const encodedMacId = encodeURIComponent(selectedRow.macAddress);
       const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/deleteGeoTab/${encodedMacId}`;
-
-      console.log('Deleting Geotab:', {
-        url,
-        method: 'DELETE',
-        macAddress: selectedRow.macAddress
-      });
 
       const response = await fetch(url, {
         method: 'DELETE',
@@ -110,27 +100,98 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
         }
       });
 
-      const responseText = await response.text();
-      console.log('Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: responseText
-      });
-
       if (!response.ok) {
-        throw new Error(`Failed to delete Geotab: ${response.status} ${response.statusText} - ${responseText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to delete Geotab: ${errorText}`);
       }
 
       onDataChange();
       setSelectedRow(null);
     } catch (error) {
-      console.error('Error deleting Geotab:', {
-        error,
-        message: error instanceof Error ? error.message : 'Unknown error',
-        selectedRow,
-        macAddress: selectedRow?.macAddress
-      });
+      console.error('Error deleting Geotab:', error);
     }
+  };
+
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (!current || current.key !== key) {
+        return { key, direction: 'asc' };
+      }
+      if (current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return null;
+    });
+  };
+
+  const handleDragStart = (column: string) => {
+    setDraggedColumn(column);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetColumn: string) => {
+    e.preventDefault();
+    if (!draggedColumn || draggedColumn === targetColumn) return;
+
+    const newOrder = [...columnOrder];
+    const draggedIdx = newOrder.indexOf(draggedColumn);
+    const targetIdx = newOrder.indexOf(targetColumn);
+
+    newOrder.splice(draggedIdx, 1);
+    newOrder.splice(targetIdx, 0, draggedColumn);
+
+    setColumnOrder(newOrder);
+  };
+
+  const handleSelectAll = () => {
+    setColumnVisibility(prev => {
+      const newVisibility = { ...prev };
+      filteredColumns.forEach(column => {
+        if (!MANDATORY_COLUMNS.includes(column)) {
+          newVisibility[column] = true;
+        }
+      });
+      return newVisibility;
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setColumnVisibility(prev => {
+      const newVisibility = { ...prev };
+      filteredColumns.forEach(column => {
+        if (!MANDATORY_COLUMNS.includes(column)) {
+          newVisibility[column] = false;
+        }
+      });
+      return newVisibility;
+    });
+  };
+
+  const downloadCSV = () => {
+    const visibleColumns = columnOrder.filter(col => columnVisibility[col]);
+    const csvContent = [
+      visibleColumns.join(','),
+      ...sortedAndFilteredData.map(row =>
+        visibleColumns.map(col => {
+          const value = row[col];
+          // Handle special cases like null, undefined, and strings with commas
+          if (value === null || value === undefined) return '""';
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return String(value);
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'supertags-data.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   const filteredColumns = useMemo(() => {
@@ -199,107 +260,6 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
     return processedData;
   }, [data, filterText, sortConfig, showSuperTagsOnly]);
 
-  const handleSort = (key: string) => {
-    setSortConfig(current => {
-      if (!current || current.key !== key) {
-        return { key, direction: 'asc' };
-      }
-      if (current.direction === 'asc') {
-        return { key, direction: 'desc' };
-      }
-      return null;
-    });
-  };
-
-  const handleDragStart = (column: string) => {
-    setDraggedColumn(column);
-  };
-
-  const handleDragOver = (e: React.DragEvent, targetColumn: string) => {
-    e.preventDefault();
-    if (!draggedColumn || draggedColumn === targetColumn) return;
-
-    const newOrder = [...columnOrder];
-    const draggedIdx = newOrder.indexOf(draggedColumn);
-    const targetIdx = newOrder.indexOf(targetColumn);
-
-    newOrder.splice(draggedIdx, 1);
-    newOrder.splice(targetIdx, 0, draggedColumn);
-
-    setColumnOrder(newOrder);
-  };
-
-  const handleSelectAll = () => {
-    setColumnVisibility(prev => {
-      const newVisibility = { ...prev };
-      filteredColumns.forEach(column => {
-        if (!MANDATORY_COLUMNS.includes(column)) {
-          newVisibility[column] = true;
-        }
-      });
-      return newVisibility;
-    });
-  };
-
-  const handleDeselectAll = () => {
-    setColumnVisibility(prev => {
-      const newVisibility = { ...prev };
-      filteredColumns.forEach(column => {
-        if (!MANDATORY_COLUMNS.includes(column)) {
-          newVisibility[column] = false;
-        }
-      });
-      return newVisibility;
-    });
-  };
-
-  const downloadCSV = () => {
-    const visibleColumns = columnOrder.filter(col => columnVisibility[col]);
-    const csvContent = [
-      visibleColumns.join(','),
-      ...sortedAndFilteredData.map(row =>
-        visibleColumns.map(col => JSON.stringify(row[col] ?? '')).join(',')
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'supertags-data.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
-
-  useEffect(() => {
-    const allColumns = new Set([...MANDATORY_COLUMNS]);
-    data.forEach(item => {
-      Object.keys(item).forEach(key => {
-        allColumns.add(key);
-      });
-    });
-    
-    const columnsArray = Array.from(allColumns);
-    MANDATORY_COLUMNS.forEach((col, index) => {
-      const currentIndex = columnsArray.indexOf(col);
-      if (currentIndex !== -1) {
-        columnsArray.splice(currentIndex, 1);
-        columnsArray.splice(index, 0, col);
-      }
-    });
-    
-    setAvailableColumns(columnsArray);
-    setColumnOrder(columnsArray);
-    
-    const initialVisibility = columnsArray.reduce((acc, col) => ({
-      ...acc,
-      [col]: MANDATORY_COLUMNS.includes(col) || true
-    }), {});
-    setColumnVisibility(initialVisibility);
-  }, [data]);
-
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center gap-4">
@@ -334,6 +294,29 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setBulkMode('add');
+                setShowBulkModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Bulk Add Geotab</span>
+            </button>
+            <button
+              onClick={() => {
+                setBulkMode('delete');
+                setShowBulkModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Bulk Delete Geotab</span>
+            </button>
+          </div>
+
           {selectedRow && (
             <>
               {!selectedRow.geotabSerialNumber ? (
@@ -397,6 +380,14 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
           </div>
         </div>
       )}
+
+      <BulkOperationsModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        onComplete={onDataChange}
+        auth={auth}
+        mode={bulkMode}
+      />
 
       {showColumnSelector && (
         <div className="p-4 bg-white border rounded-lg shadow-lg">
