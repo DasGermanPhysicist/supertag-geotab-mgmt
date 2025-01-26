@@ -27,7 +27,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
   const [showGeotabModal, setShowGeotabModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkMode, setBulkMode] = useState<'add' | 'delete'>('add');
+  const [bulkMode, setBulkMode] = useState<'pair' | 'unpair'>('pair');
   const [newGeotabSerial, setNewGeotabSerial] = useState('');
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
     setColumnVisibility(initialVisibility);
   }, [data]);
 
-  const handleAddGeotab = async () => {
+  const handlePairGeotab = async () => {
     if (!selectedRow || !newGeotabSerial || !auth.token) return;
 
     try {
@@ -81,7 +81,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
           email: auth.username,
           macAddress: selectedRow.macAddress,
           geotabSerialNumber: newGeotabSerial,
-          type: 'add'
+          type: 'pair'
         });
       }
 
@@ -95,7 +95,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
     }
   };
 
-  const handleDeleteGeotab = async () => {
+  const handleUnpairGeotab = async () => {
     if (!selectedRow || !auth.token) return;
 
     try {
@@ -118,7 +118,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
         await sendNotification({
           email: auth.username,
           macAddress: selectedRow.macAddress,
-          type: 'delete'
+          type: 'unpair'
         });
       }
 
@@ -308,23 +308,23 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                setBulkMode('add');
+                setBulkMode('pair');
                 setShowBulkModal(true);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
               <Upload className="h-4 w-4" />
-              <span>Bulk Add Geotab</span>
+              <span>Bulk Pair Geotab</span>
             </button>
             <button
               onClick={() => {
-                setBulkMode('delete');
+                setBulkMode('unpair');
                 setShowBulkModal(true);
               }}
               className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
               <Upload className="h-4 w-4" />
-              <span>Bulk Delete Geotab</span>
+              <span>Bulk Unpair Geotab</span>
             </button>
           </div>
 
@@ -336,15 +336,15 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Add Geotab</span>
+                  <span>Pair Geotab</span>
                 </button>
               ) : (
                 <button
-                  onClick={handleDeleteGeotab}
+                  onClick={handleUnpairGeotab}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
-                  <span>Remove Geotab</span>
+                  <span>Unpair Geotab</span>
                 </button>
               )}
             </>
@@ -363,7 +363,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       {showGeotabModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-            <h3 className="text-lg font-semibold mb-4">Add Geotab Serial Number</h3>
+            <h3 className="text-lg font-semibold mb-4">Pair Geotab Serial Number</h3>
             <input
               type="text"
               value={newGeotabSerial}
@@ -382,10 +382,10 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
                 Cancel
               </button>
               <button
-                onClick={handleAddGeotab}
+                onClick={handlePairGeotab}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Add
+                Pair
               </button>
             </div>
           </div>
@@ -476,7 +476,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
                 <th
                   key={column}
                   onClick={() => handleSort(column)}
-                  className={`px- 4 py-2 text-left cursor-pointer hover:bg-gray-100 ${
+                  className={`px-4 py-2 text-left cursor-pointer hover:bg-gray-100 ${
                     MANDATORY_COLUMNS.includes(column) ? 'bg-blue-50' : 'bg-gray-50'
                   }`}
                 >

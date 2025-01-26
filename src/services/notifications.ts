@@ -4,7 +4,7 @@ export async function sendNotification(data: {
   email: string;
   macAddress: string;
   geotabSerialNumber?: string;
-  type: 'add' | 'delete';
+  type: 'pair' | 'unpair';
 }) {
   try {
     const response = await fetch(NOTIFICATION_API, {

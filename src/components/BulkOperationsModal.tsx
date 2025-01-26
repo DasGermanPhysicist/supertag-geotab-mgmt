@@ -7,7 +7,7 @@ interface BulkOperationsModalProps {
   onClose: () => void;
   onComplete: () => void;
   auth: { token?: string; username?: string };
-  mode: 'add' | 'delete';
+  mode: 'pair' | 'unpair';
 }
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
@@ -26,7 +26,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadSampleCsv = () => {
-    const csvContent = mode === 'add' 
+    const csvContent = mode === 'pair' 
       ? 'macAddress,geotabSerialNumber\nF0:0E:98:34:6F:16,GT123456\nF0:0E:98:34:6F:17,GT123457'
       : 'macAddress\nF0:0E:98:34:6F:16\nF0:0E:98:34:6F:17';
 
@@ -34,7 +34,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = mode === 'add' ? 'sample-bulk-add.csv' : 'sample-bulk-delete.csv';
+    a.download = mode === 'pair' ? 'sample-bulk-pair.csv' : 'sample-bulk-unpair.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -54,12 +54,12 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
       const lines = text.split('\n').filter(line => line.trim());
       const headers = lines[0].split(',').map(h => h.trim());
       
-      if (mode === 'add' && (!headers.includes('macAddress') || !headers.includes('geotabSerialNumber'))) {
+      if (mode === 'pair' && (!headers.includes('macAddress') || !headers.includes('geotabSerialNumber'))) {
         alert('CSV must have macAddress and geotabSerialNumber columns');
         setIsProcessing(false);
         return;
       }
-      if (mode === 'delete' && !headers.includes('macAddress')) {
+      if (mode === 'unpair' && !headers.includes('macAddress')) {
         alert('CSV must have a macAddress column');
         setIsProcessing(false);
         return;
@@ -79,7 +79,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
         try {
           const encodedMacId = encodeURIComponent(row.macAddress);
           
-          if (mode === 'add') {
+          if (mode === 'pair') {
             const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/addGeoTab?macID=${encodedMacId}&geoTabSerialNumber=${row.geotabSerialNumber}`;
             const response = await fetch(url, {
               method: 'POST',
@@ -95,7 +95,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
                 email: auth.username,
                 macAddress: row.macAddress,
                 geotabSerialNumber: row.geotabSerialNumber,
-                type: 'add'
+                type: 'pair'
               });
             }
           } else {
@@ -113,7 +113,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
               await sendNotification({
                 email: auth.username,
                 macAddress: row.macAddress,
-                type: 'delete'
+                type: 'unpair'
               });
             }
           }
@@ -145,7 +145,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
       <div className="bg-white p-6 rounded-lg shadow-lg w-[600px] max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">
-            Bulk {mode === 'add' ? 'Add' : 'Delete'} Geotab Serial Numbers
+            Bulk {mode === 'pair' ? 'Pair' : 'Unpair'} Geotab Serial Numbers
           </h3>
           <button
             onClick={onClose}
@@ -160,7 +160,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
             <div>
               <p className="text-sm text-gray-600 mb-2">
                 Upload a CSV file with the following columns:
-                {mode === 'add' ? (
+                {mode === 'pair' ? (
                   <span className="font-mono block mt-1">macAddress, geotabSerialNumber</span>
                 ) : (
                   <span className="font-mono block mt-1">macAddress</span>
