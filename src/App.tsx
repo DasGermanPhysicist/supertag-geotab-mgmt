@@ -55,8 +55,8 @@ function App() {
 
       const sitesData = await response.json();
       setSites(sitesData);
-      setSelectedSite(null); // Reset selected site when organization changes
-      setData([]); // Clear existing tag data
+      setSelectedSite(null);
+      setData([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch organization sites');
     }
@@ -79,7 +79,6 @@ function App() {
         throw new Error('Failed to fetch tags');
       }
 
-      // Read the response as a stream of text
       const reader = response.body?.getReader();
       if (!reader) {
         throw new Error('Response body is not readable');
@@ -148,7 +147,6 @@ function App() {
           }
 
           const siteTags = JSON.parse(result);
-          // Add site information to each tag
           const tagsWithSite = siteTags.map((tag: SuperTag) => ({
             ...tag,
             siteName: site.value,
@@ -176,7 +174,6 @@ function App() {
     const authHeader = 'Basic ' + btoa(`${username}:${password}`);
     
     try {
-      // First fetch organizations to verify credentials
       const response = await fetch(`${API_BASE_URL}/networkAsset/airfinder/organizations`, {
         headers: {
           'Authorization': authHeader
@@ -207,12 +204,10 @@ function App() {
   const handleSiteSelect = (site: Site | null) => {
     setSelectedSite(site);
     if (!site) {
-      // If no site is selected (i.e., "All Sites" is selected), fetch tags from all sites
       if (auth.token && sites.length > 0) {
         fetchAllSiteTags(sites, auth.token);
       }
     } else {
-      // If a specific site is selected, fetch tags for that site only
       if (auth.token) {
         fetchTags(site.id, auth.token);
       }
@@ -220,7 +215,6 @@ function App() {
   };
 
   const handleDataChange = () => {
-    // Refresh the data when a change occurs
     if (selectedSite) {
       fetchTags(selectedSite.id, auth.token!);
     } else if (sites.length > 0) {
@@ -228,90 +222,85 @@ function App() {
     }
   };
 
-  if (!auth.isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {error && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
-          </div>
-        )}
-        <LoginForm
-          username={auth.username}
-          onLogin={handleLogin}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-6 px-4">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">SuperTag Data</h1>
-          <div className="space-y-4 max-w-md">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Organization
-              </label>
-              <OrganizationSelector
-                organizations={organizations}
-                selectedOrganization={selectedOrganization}
-                onOrganizationSelect={handleOrganizationSelect}
-              />
+      {!auth.isAuthenticated ? (
+        <div className="min-h-screen bg-gray-50">
+          {error && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
             </div>
-            {selectedOrganization && (
+          )}
+          <LoginForm onLogin={handleLogin} />
+        </div>
+      ) : (
+        <div className="max-w-7xl mx-auto py-6 px-4">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Link Labs GeoTab Management Tool</h1>
+            <div className="space-y-4 max-w-md">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Site
+                  Organization
                 </label>
-                <SiteSelector
-                  sites={sites}
-                  selectedSite={selectedSite}
-                  onSiteSelect={handleSiteSelect}
+                <OrganizationSelector
+                  organizations={organizations}
+                  selectedOrganization={selectedOrganization}
+                  onOrganizationSelect={handleOrganizationSelect}
                 />
               </div>
-            )}
+              {selectedOrganization && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Site
+                  </label>
+                  <SiteSelector
+                    sites={sites}
+                    selectedSite={selectedSite}
+                    onSiteSelect={handleSiteSelect}
+                  />
+                </div>
+              )}
+            </div>
           </div>
+          
+          {error && (
+            <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
+          {loading ? (
+            <div className="flex flex-col items-center justify-center h-64 space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              {loadingProgress && (
+                <div className="text-gray-600">
+                  Loading sites: {loadingProgress.current} of {loadingProgress.total}
+                </div>
+              )}
+            </div>
+          ) : data.length > 0 ? (
+            <div className="space-y-4">
+              {!selectedSite && (
+                <div className="flex items-center space-x-2 text-blue-600">
+                  <Building2 className="h-5 w-5" />
+                  <span className="font-medium">Showing data from all sites</span>
+                </div>
+              )}
+              <DataTable 
+                data={data} 
+                auth={{ token: auth.token, username: auth.username }}
+                onDataChange={handleDataChange}
+              />
+            </div>
+          ) : (
+            <div className="text-center text-gray-600 py-12">
+              {selectedOrganization 
+                ? "Please select a site to view its data"
+                : "Please select an organization to begin"}
+            </div>
+          )}
         </div>
-        
-        {error && (
-          <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
-          </div>
-        )}
-        
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-64 space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-            {loadingProgress && (
-              <div className="text-gray-600">
-                Loading sites: {loadingProgress.current} of {loadingProgress.total}
-              </div>
-            )}
-          </div>
-        ) : data.length > 0 ? (
-          <div className="space-y-4">
-            {!selectedSite && (
-              <div className="flex items-center space-x-2 text-blue-600">
-                <Building2 className="h-5 w-5" />
-                <span className="font-medium">Showing data from all sites</span>
-              </div>
-            )}
-            <DataTable 
-              data={data} 
-              auth={{ token: auth.token }}
-              onDataChange={handleDataChange}
-            />
-          </div>
-        ) : (
-          <div className="text-center text-gray-600 py-12">
-            {selectedOrganization 
-              ? "Please select a site to view its data"
-              : "Please select an organization to begin"}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

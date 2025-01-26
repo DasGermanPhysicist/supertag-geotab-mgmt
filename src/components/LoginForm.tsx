@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { KeyRound } from 'lucide-react';
 
 interface LoginFormProps {
-  username: string;
   onLogin: (username: string, password: string) => void;
 }
 
-export function LoginForm({ username: defaultUsername, onLogin }: LoginFormProps) {
-  const [username, setUsername] = useState(defaultUsername);
+export function LoginForm({ onLogin }: LoginFormProps) {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {

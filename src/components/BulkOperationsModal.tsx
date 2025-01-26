@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Download, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { sendNotification } from '../services/notifications';
 
 interface BulkOperationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
-  auth: { token?: string };
+  auth: { token?: string; username?: string };
   mode: 'add' | 'delete';
 }
 
@@ -53,7 +54,6 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
       const lines = text.split('\n').filter(line => line.trim());
       const headers = lines[0].split(',').map(h => h.trim());
       
-      // Validate headers
       if (mode === 'add' && (!headers.includes('macAddress') || !headers.includes('geotabSerialNumber'))) {
         alert('CSV must have macAddress and geotabSerialNumber columns');
         setIsProcessing(false);
@@ -87,7 +87,16 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
             });
             
             if (!response.ok) {
-              throw new Error(`Failed to add Geotab: ${response.status} ${response.statusText}`);
+              throw new Error(`Failed to pair Geotab: ${response.status} ${response.statusText}`);
+            }
+
+            if (auth.username) {
+              await sendNotification({
+                email: auth.username,
+                macAddress: row.macAddress,
+                geotabSerialNumber: row.geotabSerialNumber,
+                type: 'add'
+              });
             }
           } else {
             const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/deleteGeoTab/${encodedMacId}`;
@@ -97,7 +106,15 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
             });
             
             if (!response.ok) {
-              throw new Error(`Failed to delete Geotab: ${response.status} ${response.statusText}`);
+              throw new Error(`Failed to unpair Geotab: ${response.status} ${response.statusText}`);
+            }
+
+            if (auth.username) {
+              await sendNotification({
+                email: auth.username,
+                macAddress: row.macAddress,
+                type: 'delete'
+              });
             }
           }
           

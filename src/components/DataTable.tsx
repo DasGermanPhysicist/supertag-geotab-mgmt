@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, Upload } from 'lucide-react';
 import { SuperTag, ColumnVisibility } from '../types';
 import { BulkOperationsModal } from './BulkOperationsModal';
+import { sendNotification } from '../services/notifications';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
 const MANDATORY_COLUMNS = ['name', 'geotabSerialNumber', 'macAddress'];
@@ -9,7 +10,7 @@ const SUPERTAG_REGISTRATION_TOKEN = 'D29B3BE8F2CC9A1A7051';
 
 interface DataTableProps {
   data: SuperTag[];
-  auth: { token?: string };
+  auth: { token?: string; username?: string };
   onDataChange: () => void;
 }
 
@@ -60,7 +61,6 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
     if (!selectedRow || !newGeotabSerial || !auth.token) return;
 
     try {
-      // Use macAddress instead of macId
       const encodedMacId = encodeURIComponent(selectedRow.macAddress);
       const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/addGeoTab?macID=${encodedMacId}&geoTabSerialNumber=${newGeotabSerial}`;
       
@@ -73,7 +73,16 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to add Geotab: ${errorText}`);
+        throw new Error(`Failed to pair Geotab: ${errorText}`);
+      }
+
+      if (auth.username) {
+        await sendNotification({
+          email: auth.username,
+          macAddress: selectedRow.macAddress,
+          geotabSerialNumber: newGeotabSerial,
+          type: 'add'
+        });
       }
 
       onDataChange();
@@ -81,7 +90,8 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       setNewGeotabSerial('');
       setSelectedRow(null);
     } catch (error) {
-      console.error('Error adding Geotab:', error);
+      console.error('Error pairing Geotab:', error);
+      throw error;
     }
   };
 
@@ -89,7 +99,6 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
     if (!selectedRow || !auth.token) return;
 
     try {
-      // Use macAddress instead of macId
       const encodedMacId = encodeURIComponent(selectedRow.macAddress);
       const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/deleteGeoTab/${encodedMacId}`;
 
@@ -102,13 +111,22 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to delete Geotab: ${errorText}`);
+        throw new Error(`Failed to unpair Geotab: ${errorText}`);
+      }
+
+      if (auth.username) {
+        await sendNotification({
+          email: auth.username,
+          macAddress: selectedRow.macAddress,
+          type: 'delete'
+        });
       }
 
       onDataChange();
       setSelectedRow(null);
     } catch (error) {
-      console.error('Error deleting Geotab:', error);
+      console.error('Error unpairing Geotab:', error);
+      throw error;
     }
   };
 
@@ -173,7 +191,6 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       ...sortedAndFilteredData.map(row =>
         visibleColumns.map(col => {
           const value = row[col];
-          // Handle special cases like null, undefined, and strings with commas
           if (value === null || value === undefined) return '""';
           if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
             return `"${value.replace(/"/g, '""')}"`;
@@ -203,14 +220,12 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   const sortedAndFilteredData = useMemo(() => {
     let processedData = [...data];
 
-    // Apply SuperTags filter
     if (showSuperTagsOnly) {
       processedData = processedData.filter(item => 
         item.registrationToken === SUPERTAG_REGISTRATION_TOKEN
       );
     }
 
-    // Apply text filter
     if (filterText) {
       processedData = processedData.filter(item =>
         Object.entries(item).some(([key, value]) =>
@@ -219,7 +234,6 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       );
     }
 
-    // Always sort geotabSerialNumber entries to the top
     processedData.sort((a, b) => {
       const aHasGeotab = 'geotabSerialNumber' in a && a.geotabSerialNumber !== null && a.geotabSerialNumber !== '';
       const bHasGeotab = 'geotabSerialNumber' in b && b.geotabSerialNumber !== null && b.geotabSerialNumber !== '';
@@ -230,21 +244,18 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
       return 0;
     });
 
-    // Apply user-selected sorting
     if (sortConfig) {
       processedData.sort((a, b) => {
         if (sortConfig.key === 'geotabSerialNumber') {
           const aHasGeotab = 'geotabSerialNumber' in a && a.geotabSerialNumber !== null && a.geotabSerialNumber !== '';
           const bHasGeotab = 'geotabSerialNumber' in b && b.geotabSerialNumber !== null && b.geotabSerialNumber !== '';
           
-          // If both have or both don't have geotabSerialNumber, sort by value
           if (aHasGeotab === bHasGeotab) {
-            if (!aHasGeotab) return 0; // Both don't have geotab, maintain relative position
+            if (!aHasGeotab) return 0;
             return sortConfig.direction === 'asc'
               ? String(a.geotabSerialNumber).localeCompare(String(b.geotabSerialNumber))
               : String(b.geotabSerialNumber).localeCompare(String(a.geotabSerialNumber));
           }
-          // If one has geotabSerialNumber and the other doesn't, maintain the default order (with geotab on top)
           return aHasGeotab ? -1 : 1;
         }
         
@@ -465,7 +476,7 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
                 <th
                   key={column}
                   onClick={() => handleSort(column)}
-                  className={`px-4 py-2 text-left cursor-pointer hover:bg-gray-100 ${
+                  className={`px- 4 py-2 text-left cursor-pointer hover:bg-gray-100 ${
                     MANDATORY_COLUMNS.includes(column) ? 'bg-blue-50' : 'bg-gray-50'
                   }`}
                 >
