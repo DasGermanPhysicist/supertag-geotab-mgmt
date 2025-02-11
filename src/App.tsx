@@ -5,22 +5,51 @@ import { SiteSelector } from './components/SiteSelector';
 import { OrganizationSelector } from './components/OrganizationSelector';
 import { AuthState, SuperTag, Site, Organization } from './types';
 import { Building2 } from 'lucide-react';
+import { usePersistedState } from './hooks/usePersistedState';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
 
 function App() {
-  const [auth, setAuth] = useState<AuthState>({
+  // Persist authentication state
+  const [auth, setAuth] = usePersistedState<AuthState>('auth', {
     username: '',
     isAuthenticated: false,
   });
+
+  // Persist organization and site selections
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+  const [selectedOrganization, setSelectedOrganization] = usePersistedState<Organization | null>('selectedOrganization', null);
   const [sites, setSites] = useState<Site[]>([]);
-  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [selectedSite, setSelectedSite] = usePersistedState<Site | null>('selectedSite', null);
   const [data, setData] = useState<SuperTag[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Load initial data when auth is restored
+  useEffect(() => {
+    if (auth.isAuthenticated && auth.token) {
+      fetchOrganizations(auth.token);
+    }
+  }, [auth.isAuthenticated]);
+
+  // Load site data when organization is restored
+  useEffect(() => {
+    if (auth.isAuthenticated && auth.token && selectedOrganization) {
+      fetchOrganizationSites(selectedOrganization.id, auth.token);
+    }
+  }, [selectedOrganization, auth.isAuthenticated]);
+
+  // Load tag data when site is restored
+  useEffect(() => {
+    if (auth.isAuthenticated && auth.token) {
+      if (selectedSite) {
+        fetchTags(selectedSite.id, auth.token);
+      } else if (sites.length > 0) {
+        fetchAllSiteTags(sites, auth.token);
+      }
+    }
+  }, [selectedSite, sites.length, auth.isAuthenticated]);
 
   const fetchOrganizations = async (authHeader: string) => {
     try {
@@ -55,8 +84,6 @@ function App() {
 
       const sitesData = await response.json();
       setSites(sitesData);
-      setSelectedSite(null);
-      setData([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch organization sites');
     }
@@ -186,7 +213,7 @@ function App() {
 
       const orgsData = await response.json();
       setOrganizations(orgsData);
-      setAuth(prev => ({ ...prev, username, isAuthenticated: true, token: authHeader }));
+      setAuth({ username, isAuthenticated: true, token: authHeader });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');
     } finally {
@@ -222,6 +249,13 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    setAuth({ username: '', isAuthenticated: false });
+    setSelectedOrganization(null);
+    setSelectedSite(null);
+    setData([]);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {!auth.isAuthenticated ? (
@@ -235,32 +269,42 @@ function App() {
         </div>
       ) : (
         <div className="max-w-7xl mx-auto py-6 px-4">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Link Labs GeoTab Management Tool</h1>
-            <div className="space-y-4 max-w-md">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900">Link Labs GeoTab Management Tool</h1>
+            <div className="flex items-center gap-4">
+              <span className="text-gray-600">{auth.username}</span>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+          
+          <div className="space-y-4 max-w-md mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Organization
+              </label>
+              <OrganizationSelector
+                organizations={organizations}
+                selectedOrganization={selectedOrganization}
+                onOrganizationSelect={handleOrganizationSelect}
+              />
+            </div>
+            {selectedOrganization && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Organization
+                  Site
                 </label>
-                <OrganizationSelector
-                  organizations={organizations}
-                  selectedOrganization={selectedOrganization}
-                  onOrganizationSelect={handleOrganizationSelect}
+                <SiteSelector
+                  sites={sites}
+                  selectedSite={selectedSite}
+                  onSiteSelect={handleSiteSelect}
                 />
               </div>
-              {selectedOrganization && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Site
-                  </label>
-                  <SiteSelector
-                    sites={sites}
-                    selectedSite={selectedSite}
-                    onSiteSelect={handleSiteSelect}
-                  />
-                </div>
-              )}
-            </div>
+            )}
           </div>
           
           {error && (

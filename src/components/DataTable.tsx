@@ -3,6 +3,7 @@ import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, U
 import { SuperTag, ColumnVisibility } from '../types';
 import { BulkOperationsModal } from './BulkOperationsModal';
 import { sendNotification } from '../services/notifications';
+import { usePersistedState } from '../hooks/usePersistedState';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
 const MANDATORY_COLUMNS = ['name', 'geotabSerialNumber', 'macAddress'];
@@ -16,14 +17,14 @@ interface DataTableProps {
 
 export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
-  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({});
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [columnVisibility, setColumnVisibility] = usePersistedState<ColumnVisibility>('columnVisibility', {});
+  const [sortConfig, setSortConfig] = usePersistedState<{ key: string; direction: 'asc' | 'desc' } | null>('sortConfig', null);
   const [filterText, setFilterText] = useState('');
   const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnOrder, setColumnOrder] = usePersistedState<string[]>('columnOrder', []);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [columnSearchTerm, setColumnSearchTerm] = useState('');
-  const [showSuperTagsOnly, setShowSuperTagsOnly] = useState(false);
+  const [showSuperTagsOnly, setShowSuperTagsOnly] = usePersistedState<boolean>('showSuperTagsOnly', false);
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
   const [showGeotabModal, setShowGeotabModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -31,30 +32,38 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   const [newGeotabSerial, setNewGeotabSerial] = useState('');
 
   useEffect(() => {
-    const allColumns = new Set([...MANDATORY_COLUMNS]);
-    data.forEach(item => {
-      Object.keys(item).forEach(key => {
-        allColumns.add(key);
+    if (data.length > 0) {
+      const allColumns = new Set([...MANDATORY_COLUMNS]);
+      data.forEach(item => {
+        Object.keys(item).forEach(key => {
+          allColumns.add(key);
+        });
       });
-    });
-    
-    const columnsArray = Array.from(allColumns);
-    MANDATORY_COLUMNS.forEach((col, index) => {
-      const currentIndex = columnsArray.indexOf(col);
-      if (currentIndex !== -1) {
-        columnsArray.splice(currentIndex, 1);
-        columnsArray.splice(index, 0, col);
+      
+      const columnsArray = Array.from(allColumns);
+      
+      MANDATORY_COLUMNS.forEach((col, index) => {
+        const currentIndex = columnsArray.indexOf(col);
+        if (currentIndex !== -1) {
+          columnsArray.splice(currentIndex, 1);
+          columnsArray.splice(index, 0, col);
+        }
+      });
+      
+      setAvailableColumns(columnsArray);
+      
+      if (columnOrder.length === 0 || !columnsArray.every(col => columnOrder.includes(col))) {
+        setColumnOrder(columnsArray);
       }
-    });
-    
-    setAvailableColumns(columnsArray);
-    setColumnOrder(columnsArray);
-    
-    const initialVisibility = columnsArray.reduce((acc, col) => ({
-      ...acc,
-      [col]: MANDATORY_COLUMNS.includes(col) || true
-    }), {});
-    setColumnVisibility(initialVisibility);
+      
+      const newVisibility = { ...columnVisibility };
+      columnsArray.forEach(col => {
+        if (newVisibility[col] === undefined) {
+          newVisibility[col] = MANDATORY_COLUMNS.includes(col) || true;
+        }
+      });
+      setColumnVisibility(newVisibility);
+    }
   }, [data]);
 
   const handlePairGeotab = async () => {
