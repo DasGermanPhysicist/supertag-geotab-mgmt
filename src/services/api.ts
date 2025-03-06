@@ -58,6 +58,37 @@ export const apiService = {
     }
   },
 
+  fetchTagsWithAreaGrouping: async (siteId: string, authHeader: string): Promise<any[]> => {
+    const response = await fetch(
+      `${API_BASE_URL}/networkAsset/airfinder/tags?siteId=${siteId}&groupBy=area&format=json`,
+      {
+        headers: { 'Authorization': authHeader }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch tags with area grouping');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('Response body is not readable');
+    }
+
+    let result = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      result += new TextDecoder().decode(value);
+    }
+
+    try {
+      return JSON.parse(result);
+    } catch (e) {
+      throw new Error('Invalid JSON response');
+    }
+  },
+
   pairGeotab: async (macAddress: string, geotabSerialNumber: string, authHeader: string): Promise<void> => {
     const encodedMacId = encodeURIComponent(macAddress);
     const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/addGeoTab?macID=${encodedMacId}&geoTabSerialNumber=${geotabSerialNumber}`;
