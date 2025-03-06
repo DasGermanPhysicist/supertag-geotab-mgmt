@@ -93,6 +93,33 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
     }
   };
 
+  const handleSetHydrophobic = async (nodeAddress, value) => {
+    try {
+      console.log(`Attempting to set hydrophobic=${value} for node ${nodeAddress}`);
+      
+      if (!nodeAddress) {
+        throw new Error("Node address is required");
+      }
+      
+      await apiService.setHydrophobic(nodeAddress, value, auth.token!);
+      
+      if (auth.username) {
+        await sendNotification({
+          email: auth.username,
+          macAddress: nodeAddress,
+          type: 'hydrophobic',
+          hydrophobicValue: value
+        });
+      }
+      
+      refreshData();
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting hydrophobic property:', error);
+      return { success: false, error };
+    }
+  };
+
   const error = orgError || siteError || dataError;
 
   return (
@@ -252,6 +279,7 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                 onDataChange={handleDataChange}
                 onPairGeotab={handlePairGeotab}
                 onUnpairGeotab={handleUnpairGeotab}
+                onSetHydrophobic={handleSetHydrophobic}
               />
             </div>
           ) : (

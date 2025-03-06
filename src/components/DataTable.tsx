@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, Upload, RefreshCcw, Filter, X, Check, ExternalLink, Info } from 'lucide-react';
+import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, Upload, RefreshCcw, Filter, X, Check, ExternalLink, Info, Droplets, Settings } from 'lucide-react';
 import { SuperTag, ColumnVisibility } from '../types';
 import { BulkOperationsModal } from './BulkOperationsModal';
+import { HydrophobicBulkModal } from './HydrophobicBulkModal';
 import { usePersistedState } from '../hooks/usePersistedState';
 
 const MANDATORY_COLUMNS = ['nodeName', 'geotabSerialNumber', 'macAddress'];
@@ -13,9 +14,10 @@ interface DataTableProps {
   onDataChange: () => void;
   onPairGeotab: (macAddress: string, geotabSerialNumber: string) => Promise<{ success: boolean; error?: Error }>;
   onUnpairGeotab: (macAddress: string) => Promise<{ success: boolean; error?: Error }>;
+  onSetHydrophobic: (nodeAddress: string, value: boolean) => Promise<{ success: boolean; error?: Error }>;
 }
 
-export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeotab }: DataTableProps) {
+export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeotab, onSetHydrophobic }: DataTableProps) {
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [columnVisibility, setColumnVisibility] = usePersistedState<ColumnVisibility>('columnVisibility', {});
   const [sortConfig, setSortConfig] = usePersistedState<{ key: string; direction: 'asc' | 'desc' } | null>('sortConfig', null);
@@ -27,8 +29,11 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
   const [showSuperTagsOnly, setShowSuperTagsOnly] = usePersistedState<boolean>('showSuperTagsOnly', false);
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
   const [showGeotabModal, setShowGeotabModal] = useState(false);
+  const [showHydrophobicModal, setShowHydrophobicModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showHydrophobicBulkModal, setShowHydrophobicBulkModal] = useState(false);
   const [bulkMode, setBulkMode] = useState<'pair' | 'unpair'>('pair');
+  const [hydrophobicBulkValue, setHydrophobicBulkValue] = useState<boolean>(true);
   const [newGeotabSerial, setNewGeotabSerial] = useState('');
   const [actionStatus, setActionStatus] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -43,7 +48,9 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
     'lastEventTime', 
     'batteryStatus', 
     'motionState', 
-    'locationName'
+    'locationName',
+    'hydrophobic',
+    'nodeAddress'
   ];
 
   // Handle column initialization
@@ -129,6 +136,36 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
       console.error('Error unpairing Geotab:', error);
       setActionStatus({
         message: `Failed to unpair: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
+    }
+  };
+
+  const handleSetHydrophobic = async (value: boolean) => {
+    if (!selectedRow || !selectedRow.nodeAddress) return;
+
+    try {
+      const result = await onSetHydrophobic(selectedRow.nodeAddress, value);
+      if (result.success) {
+        setShowHydrophobicModal(false);
+        setActionStatus({
+          message: `Successfully set hydrophobic property to ${value ? 'true' : 'false'} for device ${selectedRow.nodeName}`,
+          type: 'success'
+        });
+        setSelectedRow(null);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setActionStatus(null), 3000);
+
+        // Refresh data to show updated property
+        onDataChange();
+      } else {
+        throw result.error;
+      }
+    } catch (error) {
+      console.error('Error setting hydrophobic property:', error);
+      setActionStatus({
+        message: `Failed to set hydrophobic property: ${error instanceof Error ? error.message : 'Unknown error'}`,
         type: 'error'
       });
     }
@@ -337,6 +374,17 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
       );
     }
     
+    if (column === 'hydrophobic') {
+      const isHydrophobic = String(value).toLowerCase() === 'true';
+      return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+          isHydrophobic ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+        }`}>
+          {isHydrophobic ? 'Hydrophobic' : 'Not Hydrophobic'}
+        </span>
+      );
+    }
+    
     if (column === 'areaName' && value) {
       return (
         <span className="badge badge-primary">{value}</span>
@@ -467,6 +515,19 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
               </button>
             </div>
 
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setHydrophobicBulkValue(true);
+                  setShowHydrophobicBulkModal(true);
+                }}
+                className="btn btn-primary flex items-center gap-1 text-sm py-2"
+              >
+                <Droplets className="h-4 w-4" />
+                <span className="hidden sm:inline">Bulk Hydrophobic</span>
+              </button>
+            </div>
+
             {selectedRow && (
               <>
                 {!selectedRow.geotabSerialNumber ? (
@@ -484,6 +545,16 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
                   >
                     <Trash2 className="h-4 w-4" />
                     <span>Unpair Geotab</span>
+                  </button>
+                )}
+
+                {selectedRow.nodeAddress && (
+                  <button
+                    onClick={() => setShowHydrophobicModal(true)}
+                    className="btn btn-primary flex items-center gap-1 text-sm py-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>Hydrophobic</span>
                   </button>
                 )}
               </>
@@ -582,12 +653,60 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
         </div>
       )}
 
+      {showHydrophobicModal && selectedRow && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Set Hydrophobic Property</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Set the hydrophobic property for 
+              <span className="font-medium text-gray-900 ml-1">{selectedRow?.nodeName}</span>
+            </p>
+            <div className="flex flex-col space-y-3 mb-6">
+              <p className="text-sm text-gray-500">Current value: {selectedRow.hydrophobic === 'true' ? 'Hydrophobic' : 'Not Hydrophobic'}</p>
+              <div className="flex items-center space-x-4">
+                <button 
+                  onClick={() => handleSetHydrophobic(true)}
+                  className={`btn ${selectedRow.hydrophobic === 'true' ? 'btn-secondary' : 'btn-primary'} flex-1`}
+                >
+                  <Droplets className="h-4 w-4 mr-2" />
+                  Hydrophobic
+                </button>
+                <button 
+                  onClick={() => handleSetHydrophobic(false)}
+                  className={`btn ${selectedRow.hydrophobic === 'false' ? 'btn-secondary' : 'btn-primary'} flex-1`}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Not Hydrophobic
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowHydrophobicModal(false)}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BulkOperationsModal
         isOpen={showBulkModal}
         onClose={() => setShowBulkModal(false)}
         onComplete={onDataChange}
         auth={auth}
         mode={bulkMode}
+      />
+
+      <HydrophobicBulkModal
+        isOpen={showHydrophobicBulkModal}
+        onClose={() => setShowHydrophobicBulkModal(false)}
+        onComplete={onDataChange}
+        auth={auth}
+        value={hydrophobicBulkValue}
+        onValueChange={setHydrophobicBulkValue}
       />
 
       {showColumnSelector && (
@@ -698,6 +817,12 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
                     <span>Paired</span>
                   </span>
                 )}
+                {row.hydrophobic === 'true' && (
+                  <span className="badge badge-primary flex items-center space-x-1 ml-2">
+                    <Droplets className="h-3 w-3" />
+                    <span>Hydrophobic</span>
+                  </span>
+                )}
               </div>
               
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -713,6 +838,13 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
                   <div>
                     <p className="text-xs text-gray-500">Geotab Serial</p>
                     <p className="font-medium text-gray-900">{row.geotabSerialNumber}</p>
+                  </div>
+                )}
+                
+                {row.nodeAddress && (
+                  <div>
+                    <p className="text-xs text-gray-500">Node Address</p>
+                    <p className="font-mono text-xs text-gray-700">{row.nodeAddress}</p>
                   </div>
                 )}
                 
@@ -746,7 +878,7 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
               </div>
               
               {row === selectedRow && (
-                <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between">
+                <div className="mt-4 pt-3 border-t border-gray-200 flex justify-between flex-wrap gap-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -757,29 +889,44 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
                     Deselect
                   </button>
                   
-                  {!row.geotabSerialNumber ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowGeotabModal(true);
-                      }}
-                      className="text-sm text-blue-600 font-medium hover:text-blue-800 flex items-center"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Pair Geotab
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUnpairGeotab();
-                      }}
-                      className="text-sm text-red-600 font-medium hover:text-red-800 flex items-center"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Unpair Geotab
-                    </button>
-                  )}
+                  <div className="flex gap-2">
+                    {row.nodeAddress && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowHydrophobicModal(true);
+                        }}
+                        className="text-sm text-blue-600 font-medium hover:text-blue-800 flex items-center"
+                      >
+                        <Droplets className="h-4 w-4 mr-1" />
+                        Hydrophobic
+                      </button>
+                    )}
+                    
+                    {!row.geotabSerialNumber ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowGeotabModal(true);
+                        }}
+                        className="text-sm text-green-600 font-medium hover:text-green-800 flex items-center"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Pair Geotab
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnpairGeotab();
+                        }}
+                        className="text-sm text-red-600 font-medium hover:text-red-800 flex items-center"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Unpair Geotab
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

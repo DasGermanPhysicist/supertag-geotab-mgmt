@@ -117,5 +117,40 @@ export const apiService = {
       const errorText = await response.text();
       throw new Error(`Failed to unpair Geotab: ${errorText}`);
     }
+  },
+
+  setHydrophobic: async (nodeAddress: string, value: boolean, authHeader: string): Promise<void> => {
+    try {
+      // The node address needs special encoding as it appears in the example URL
+      // We'll use encodeURIComponent which works for most cases
+      const encodedNodeAddress = encodeURIComponent(nodeAddress);
+      
+      console.log(`Setting hydrophobic property for ${nodeAddress} to ${value}`);
+      console.log(`Encoded node address: ${encodedNodeAddress}`);
+      
+      const url = `${API_BASE_URL}/networkAsset/module/${encodedNodeAddress}/metadata/properties/hydrophobic/${value}`;
+      console.log(`API URL: ${url}`);
+      
+      // Switch to PATCH method as specified
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error: ${response.status} ${response.statusText}`);
+        console.error(`Response body: ${errorText}`);
+        throw new Error(`Failed to set hydrophobic property: ${errorText || response.statusText}`);
+      }
+      
+      console.log(`Successfully set hydrophobic property for ${nodeAddress} to ${value}`);
+    } catch (error) {
+      console.error("Error in setHydrophobic:", error);
+      throw error;
+    }
   }
 };

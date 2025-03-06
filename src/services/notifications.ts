@@ -4,9 +4,11 @@ export async function sendNotification(data: {
   email: string;
   macAddress: string;
   geotabSerialNumber?: string;
-  type: 'pair' | 'unpair';
+  type: 'pair' | 'unpair' | 'hydrophobic';
+  hydrophobicValue?: boolean;
 }) {
   try {
+    console.log("Sending notification:", data);
     const response = await fetch(NOTIFICATION_API, {
       method: 'POST',
       headers: {
@@ -18,6 +20,8 @@ export async function sendNotification(data: {
     if (!response.ok) {
       throw new Error(`Notification failed: ${response.status} ${response.statusText}`);
     }
+    
+    return await response.json();
   } catch (error) {
     console.error('Failed to send notification:', error);
   }
