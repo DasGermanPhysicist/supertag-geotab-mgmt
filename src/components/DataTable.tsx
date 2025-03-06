@@ -2,20 +2,20 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Download, SlidersHorizontal, GripVertical, Search, Tag, Plus, Trash2, Upload } from 'lucide-react';
 import { SuperTag, ColumnVisibility } from '../types';
 import { BulkOperationsModal } from './BulkOperationsModal';
-import { sendNotification } from '../services/notifications';
 import { usePersistedState } from '../hooks/usePersistedState';
 
-const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
-const MANDATORY_COLUMNS = ['name', 'geotabSerialNumber', 'macAddress'];
+const MANDATORY_COLUMNS = ['nodeName', 'geotabSerialNumber', 'macAddress'];
 const SUPERTAG_REGISTRATION_TOKEN = 'D29B3BE8F2CC9A1A7051';
 
 interface DataTableProps {
   data: SuperTag[];
   auth: { token?: string; username?: string };
   onDataChange: () => void;
+  onPairGeotab: (macAddress: string, geotabSerialNumber: string) => Promise<{ success: boolean; error?: Error }>;
+  onUnpairGeotab: (macAddress: string) => Promise<{ success: boolean; error?: Error }>;
 }
 
-export function DataTable({ data, auth, onDataChange }: DataTableProps) {
+export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeotab }: DataTableProps) {
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [columnVisibility, setColumnVisibility] = usePersistedState<ColumnVisibility>('columnVisibility', {});
   const [sortConfig, setSortConfig] = usePersistedState<{ key: string; direction: 'asc' | 'desc' } | null>('sortConfig', null);
@@ -67,37 +67,17 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   }, [data]);
 
   const handlePairGeotab = async () => {
-    if (!selectedRow || !newGeotabSerial || !auth.token) return;
+    if (!selectedRow || !newGeotabSerial) return;
 
     try {
-      const encodedMacId = encodeURIComponent(selectedRow.macAddress);
-      const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/addGeoTab?macID=${encodedMacId}&geoTabSerialNumber=${newGeotabSerial}`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': auth.token
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to pair Geotab: ${errorText}`);
+      const result = await onPairGeotab(selectedRow.macAddress, newGeotabSerial);
+      if (result.success) {
+        setShowGeotabModal(false);
+        setNewGeotabSerial('');
+        setSelectedRow(null);
+      } else {
+        throw result.error;
       }
-
-      if (auth.username) {
-        await sendNotification({
-          email: auth.username,
-          macAddress: selectedRow.macAddress,
-          geotabSerialNumber: newGeotabSerial,
-          type: 'pair'
-        });
-      }
-
-      onDataChange();
-      setShowGeotabModal(false);
-      setNewGeotabSerial('');
-      setSelectedRow(null);
     } catch (error) {
       console.error('Error pairing Geotab:', error);
       throw error;
@@ -105,34 +85,15 @@ export function DataTable({ data, auth, onDataChange }: DataTableProps) {
   };
 
   const handleUnpairGeotab = async () => {
-    if (!selectedRow || !auth.token) return;
+    if (!selectedRow) return;
 
     try {
-      const encodedMacId = encodeURIComponent(selectedRow.macAddress);
-      const url = `${API_BASE_URL}/networkAsset/airfinder/supertags/deleteGeoTab/${encodedMacId}`;
-
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': auth.token
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to unpair Geotab: ${errorText}`);
+      const result = await onUnpairGeotab(selectedRow.macAddress);
+      if (result.success) {
+        setSelectedRow(null);
+      } else {
+        throw result.error;
       }
-
-      if (auth.username) {
-        await sendNotification({
-          email: auth.username,
-          macAddress: selectedRow.macAddress,
-          type: 'unpair'
-        });
-      }
-
-      onDataChange();
-      setSelectedRow(null);
     } catch (error) {
       console.error('Error unpairing Geotab:', error);
       throw error;
