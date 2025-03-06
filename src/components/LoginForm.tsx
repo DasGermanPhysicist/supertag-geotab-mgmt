@@ -31,7 +31,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             </div>
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">Link Labs</h2>
-          <p className="mt-2 text-sm text-gray-600">Sign in to SuperTag Management</p>
+          <p className="mt-2 text-sm text-gray-600">Sign in to Link Labs Tag Manager</p>
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

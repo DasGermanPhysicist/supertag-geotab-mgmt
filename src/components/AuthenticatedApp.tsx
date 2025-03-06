@@ -129,7 +129,7 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <LayoutDashboard className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900 hidden sm:block">Link Labs GeoTab Management</h1>
+            <h1 className="text-xl font-bold text-gray-900 hidden sm:block">Link Labs Tag Manager</h1>
             <h1 className="text-xl font-bold text-gray-900 sm:hidden">Link Labs</h1>
           </div>
           
