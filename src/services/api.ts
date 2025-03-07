@@ -1,6 +1,7 @@
 import { Organization, Site, SuperTag } from '../types';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
+const GEOCODE_API_URL = 'https://api.george.airfinder.com/reverse.php';
 
 export const apiService = {
   fetchOrganizations: async (authHeader: string): Promise<Organization[]> => {
@@ -150,6 +151,28 @@ export const apiService = {
       console.log(`Successfully set hydrophobic property for ${nodeAddress} to ${value}`);
     } catch (error) {
       console.error("Error in setHydrophobic:", error);
+      throw error;
+    }
+  },
+
+  // New method for geocoding lat/lon to address
+  fetchAddressFromCoordinates: async (latitude: number, longitude: number): Promise<any> => {
+    try {
+      if (!latitude || !longitude) {
+        throw new Error('Invalid coordinates');
+      }
+
+      const url = `${GEOCODE_API_URL}?lat=${latitude}&lon=${longitude}&zoom=18&format=jsonv2`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Geocoding failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching address:', error);
       throw error;
     }
   }

@@ -8,6 +8,68 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
 
+  const enrichTagsWithAddress = async (tags: SuperTag[]): Promise<SuperTag[]> => {
+    // Create a new array to hold the enriched tags
+    const enrichedTags: SuperTag[] = [];
+    
+    // Process tags in batches to avoid overwhelming the API
+    const batchSize = 10;
+    const tagCount = tags.length;
+    
+    // Update the loading progress to include address resolution
+    setLoadingProgress({ current: 0, total: tagCount });
+    
+    for (let i = 0; i < tagCount; i += batchSize) {
+      const batch = tags.slice(i, i + batchSize);
+      
+      // Process each tag in the batch concurrently
+      const processedBatch = await Promise.all(
+        batch.map(async (tag) => {
+          try {
+            // Check if the tag has latitude and longitude
+            if (tag.latitude && tag.longitude) {
+              // Parse latitude and longitude to numbers if they're strings
+              const lat = typeof tag.latitude === 'string' ? parseFloat(tag.latitude) : tag.latitude;
+              const lon = typeof tag.longitude === 'string' ? parseFloat(tag.longitude) : tag.longitude;
+              
+              // Skip if values can't be parsed
+              if (isNaN(lat) || isNaN(lon)) {
+                return tag;
+              }
+              
+              // Fetch address data
+              const addressData = await apiService.fetchAddressFromCoordinates(lat, lon);
+              
+              // Add address data to the tag
+              return {
+                ...tag,
+                addressData: addressData,
+                formattedAddress: addressData.display_name,
+                // Add individual address components
+                ...Object.keys(addressData.address || {}).reduce((obj, key) => {
+                  obj[`address_${key}`] = addressData.address[key];
+                  return obj;
+                }, {})
+              };
+            }
+          } catch (err) {
+            console.error(`Error fetching address for tag ${tag.nodeName}:`, err);
+          }
+          
+          return tag;
+        })
+      );
+      
+      // Add the processed batch to the enriched tags
+      enrichedTags.push(...processedBatch);
+      
+      // Update progress
+      setLoadingProgress({ current: i + batch.length, total: tagCount });
+    }
+    
+    return enrichedTags;
+  };
+
   const fetchTags = async () => {
     if (!authToken) return;
     
@@ -55,7 +117,9 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
           return tag;
         });
         
-        setData(mergedData);
+        // Enrich the data with address information
+        const enrichedData = await enrichTagsWithAddress(mergedData);
+        setData(enrichedData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch tags');
       } finally {
@@ -137,7 +201,9 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         }
       }
 
-      setData(allTags);
+      // Enrich the data with address information
+      const enrichedTags = await enrichTagsWithAddress(allTags);
+      setData(enrichedTags);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tags from all sites');
     } finally {

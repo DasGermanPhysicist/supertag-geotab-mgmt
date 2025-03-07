@@ -37,6 +37,17 @@ export function TableColumns({
     return null;
   }
 
+  // Group columns by category for better organization
+  const groupedColumns = {
+    address: filteredColumns.filter(col => col.startsWith('address_') || col === 'formattedAddress'),
+    location: filteredColumns.filter(col => ['latitude', 'longitude'].includes(col)),
+    other: filteredColumns.filter(col => 
+      !col.startsWith('address_') && 
+      col !== 'formattedAddress' && 
+      !['latitude', 'longitude'].includes(col)
+    )
+  };
+
   return (
     <div className="bg-white border rounded-lg shadow-lg p-4">
       <div className="space-y-4">
@@ -71,37 +82,123 @@ export function TableColumns({
           />
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4 max-h-64 overflow-y-auto">
-          {filteredColumns.map(column => (
-            <div
-              key={column}
-              draggable={!MANDATORY_COLUMNS.includes(column)}
-              onDragStart={() => handleDragStart(column)}
-              onDragOver={(e) => handleDragOver(e, column)}
-              className={`flex items-center p-2 rounded transition-colors ${
-                MANDATORY_COLUMNS.includes(column)
-                  ? 'bg-blue-50 border border-blue-100'
-                  : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
-              }`}
-            >
-              <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
-              <label className="flex items-center space-x-2 flex-1 truncate">
-                <input
-                  type="checkbox"
-                  checked={columnVisibility[column]}
-                  disabled={MANDATORY_COLUMNS.includes(column)}
-                  onChange={() => setColumnVisibility({
-                    ...columnVisibility,
-                    [column]: !columnVisibility[column]
-                  })}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                />
-                <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
-                  {column}
-                </span>
-              </label>
+        <div className="mt-4 space-y-6">
+          {/* Address columns section */}
+          {groupedColumns.address.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Address Information</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                {groupedColumns.address.map(column => (
+                  <div
+                    key={column}
+                    draggable={!MANDATORY_COLUMNS.includes(column)}
+                    onDragStart={() => handleDragStart(column)}
+                    onDragOver={(e) => handleDragOver(e, column)}
+                    className={`flex items-center p-2 rounded transition-colors ${
+                      MANDATORY_COLUMNS.includes(column)
+                        ? 'bg-blue-50 border border-blue-100'
+                        : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
+                    }`}
+                  >
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
+                    <label className="flex items-center space-x-2 flex-1 truncate">
+                      <input
+                        type="checkbox"
+                        checked={columnVisibility[column]}
+                        disabled={MANDATORY_COLUMNS.includes(column)}
+                        onChange={() => setColumnVisibility({
+                          ...columnVisibility,
+                          [column]: !columnVisibility[column]
+                        })}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                        {column === 'formattedAddress' ? 'Full Address' : column.replace('address_', '')}
+                      </span>
+                    </label>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
+
+          {/* Location columns section */}
+          {groupedColumns.location.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Geographic Coordinates</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                {groupedColumns.location.map(column => (
+                  <div
+                    key={column}
+                    draggable={!MANDATORY_COLUMNS.includes(column)}
+                    onDragStart={() => handleDragStart(column)}
+                    onDragOver={(e) => handleDragOver(e, column)}
+                    className={`flex items-center p-2 rounded transition-colors ${
+                      MANDATORY_COLUMNS.includes(column)
+                        ? 'bg-blue-50 border border-blue-100'
+                        : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
+                    }`}
+                  >
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
+                    <label className="flex items-center space-x-2 flex-1 truncate">
+                      <input
+                        type="checkbox"
+                        checked={columnVisibility[column]}
+                        disabled={MANDATORY_COLUMNS.includes(column)}
+                        onChange={() => setColumnVisibility({
+                          ...columnVisibility,
+                          [column]: !columnVisibility[column]
+                        })}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                        {column}
+                      </span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other columns section */}
+          {groupedColumns.other.length > 0 && (
+            <div>
+              <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Tag Properties</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+                {groupedColumns.other.map(column => (
+                  <div
+                    key={column}
+                    draggable={!MANDATORY_COLUMNS.includes(column)}
+                    onDragStart={() => handleDragStart(column)}
+                    onDragOver={(e) => handleDragOver(e, column)}
+                    className={`flex items-center p-2 rounded transition-colors ${
+                      MANDATORY_COLUMNS.includes(column)
+                        ? 'bg-blue-50 border border-blue-100'
+                        : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
+                    }`}
+                  >
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
+                    <label className="flex items-center space-x-2 flex-1 truncate">
+                      <input
+                        type="checkbox"
+                        checked={columnVisibility[column]}
+                        disabled={MANDATORY_COLUMNS.includes(column)}
+                        onChange={() => setColumnVisibility({
+                          ...columnVisibility,
+                          [column]: !columnVisibility[column]
+                        })}
+                        className="rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                        {column}
+                      </span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="pt-2 border-t border-gray-200 mt-4">

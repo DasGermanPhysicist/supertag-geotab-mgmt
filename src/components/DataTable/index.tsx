@@ -10,6 +10,7 @@ import { HydrophobicModal } from './modals/HydrophobicModal';
 import { BulkOperationsModal } from '../BulkOperationsModal';
 import { HydrophobicBulkModal } from '../HydrophobicBulkModal';
 import { useTableState } from './hooks/useTableState';
+import { Locate as MapLocation } from 'lucide-react';
 
 const SUPERTAG_REGISTRATION_TOKEN = 'D29B3BE8F2CC9A1A7051';
 
@@ -37,12 +38,33 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
     SUPERTAG_REGISTRATION_TOKEN,
   });
 
+  // Add a state for tracking address loading
+  const [addressLoading, setAddressLoading] = useState(false);
+
+  // Track when address data is being processed (based on loadingProgress)
+  useEffect(() => {
+    if (state.isRefreshing && !addressLoading) {
+      setAddressLoading(true);
+    } else if (!state.isRefreshing && addressLoading) {
+      // Add delay to ensure smooth transition
+      const timer = setTimeout(() => {
+        setAddressLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [state.isRefreshing, addressLoading]);
+
   // Scroll to table
   const scrollToTable = () => {
     if (tableRef.current) {
       tableRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Check if any address columns are visible
+  const hasVisibleAddressColumns = [...state.ADDRESS_COLUMNS, 'formattedAddress'].some(col => 
+    state.columnVisibility[col] && state.columnOrder.includes(col)
+  );
 
   return (
     <div className="space-y-4" ref={tableRef}>
@@ -76,6 +98,26 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
           setFilterText={actions.setFilterText}
           setShowSuperTagsOnly={actions.setShowSuperTagsOnly}
         />
+
+        {/* Address loading indicator */}
+        {addressLoading && (
+          <div className="px-4 py-3 border-t bg-blue-50 border-blue-100 text-blue-700">
+            <div className="flex items-center">
+              <MapLocation className="h-4 w-4 mr-2 animate-pulse" />
+              <p className="text-sm">Loading address information for tags...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Address columns info banner */}
+        {hasVisibleAddressColumns && (
+          <div className="px-4 py-3 border-t bg-gray-50 border-gray-100 text-gray-700">
+            <div className="flex items-center">
+              <MapLocation className="h-4 w-4 mr-2 flex-shrink-0" />
+              <p className="text-sm">Address information is automatically resolved from latitude/longitude coordinates. Individual address components may vary based on location.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}

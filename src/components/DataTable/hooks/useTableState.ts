@@ -13,8 +13,24 @@ const PREFERRED_COLUMNS = [
   'motionState', 
   'locationName',
   'hydrophobic',
-  'nodeAddress'
+  'nodeAddress',
+  'formattedAddress'
 ];
+
+// Add address columns to preferred columns
+const ADDRESS_COLUMNS = [
+  'address_road',
+  'address_city',
+  'address_county',
+  'address_state',
+  'address_postcode',
+  'address_country',
+  'latitude',
+  'longitude'
+];
+
+// Combine all preferred columns
+const ALL_PREFERRED_COLUMNS = [...PREFERRED_COLUMNS, ...ADDRESS_COLUMNS];
 
 const MANDATORY_COLUMNS = ['nodeName', 'geotabSerialNumber', 'macAddress'];
 
@@ -58,6 +74,7 @@ export function useTableState({
   // Handle column initialization
   useEffect(() => {
     if (data.length > 0) {
+      // Collect all column keys from the data, including address fields
       const allColumns = new Set([...MANDATORY_COLUMNS]);
       data.forEach(item => {
         Object.keys(item).forEach(key => {
@@ -68,8 +85,8 @@ export function useTableState({
       // Sort columns to put preferred columns first
       const columnsArray = Array.from(allColumns);
       const orderedColumns = [
-        ...PREFERRED_COLUMNS.filter(col => columnsArray.includes(col)),
-        ...columnsArray.filter(col => !PREFERRED_COLUMNS.includes(col))
+        ...ALL_PREFERRED_COLUMNS.filter(col => columnsArray.includes(col)),
+        ...columnsArray.filter(col => !ALL_PREFERRED_COLUMNS.includes(col))
       ];
       
       setAvailableColumns(orderedColumns);
@@ -81,8 +98,11 @@ export function useTableState({
       const newVisibility = { ...columnVisibility };
       columnsArray.forEach(col => {
         if (newVisibility[col] === undefined) {
-          // By default, only show preferred columns
-          newVisibility[col] = MANDATORY_COLUMNS.includes(col) || PREFERRED_COLUMNS.includes(col);
+          // By default, show mandatory columns, preferred columns, and address columns
+          newVisibility[col] = MANDATORY_COLUMNS.includes(col) || 
+                              PREFERRED_COLUMNS.includes(col) || 
+                              ADDRESS_COLUMNS.includes(col) ||
+                              col === 'formattedAddress';
         }
       });
       setColumnVisibility(newVisibility);
@@ -225,6 +245,21 @@ export function useTableState({
     if (column === 'zoneName' && value) {
       return (
         <span className="badge badge-secondary">{value}</span>
+      );
+    }
+    
+    if (column === 'formattedAddress' && value) {
+      return (
+        <div className="max-w-xs truncate" title={value}>
+          {value}
+        </div>
+      );
+    }
+    
+    // Handle address-specific columns
+    if (column.startsWith('address_') && value) {
+      return (
+        <span className="font-medium">{value}</span>
       );
     }
     
@@ -455,6 +490,7 @@ export function useTableState({
       sortedAndFilteredData,
       MANDATORY_COLUMNS,
       PREFERRED_COLUMNS,
+      ADDRESS_COLUMNS,
       columnSearchTerm,
     },
     actions: {
