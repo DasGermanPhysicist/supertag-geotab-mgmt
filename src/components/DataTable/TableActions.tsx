@@ -8,6 +8,10 @@ interface TableActionsProps {
   showSuperTagsOnly: boolean;
   setFilterText: (text: string) => void;
   setShowSuperTagsOnly: (show: boolean) => void;
+  // New props for column filters
+  columnFilters?: Record<string, string>;
+  clearColumnFilters?: () => void;
+  hasActiveColumnFilters?: boolean;
 }
 
 export function TableActions({ 
@@ -16,8 +20,14 @@ export function TableActions({
   filterText,
   showSuperTagsOnly,
   setFilterText,
-  setShowSuperTagsOnly
+  setShowSuperTagsOnly,
+  columnFilters = {},
+  clearColumnFilters = () => {},
+  hasActiveColumnFilters = false
 }: TableActionsProps) {
+  // Get active column filter names for display
+  const activeFilterNames = Object.keys(columnFilters);
+
   return (
     <>
       {/* Status messages */}
@@ -42,13 +52,13 @@ export function TableActions({
         </div>
       )}
       
-      {/* Filter information */}
+      {/* Filter information - Global filters */}
       {(filterText || showSuperTagsOnly) && (
         <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Filter className="h-3 w-3" />
             <span>
-              Filters: 
+              Global Filters: 
               {filterText && <span className="ml-1 font-medium">Search "{filterText}"</span>}
               {showSuperTagsOnly && <span className="ml-1 font-medium">SuperTags only</span>}
             </span>
@@ -60,7 +70,32 @@ export function TableActions({
             }}
             className="text-blue-600 hover:text-blue-800"
           >
-            Clear all
+            Clear global filters
+          </button>
+        </div>
+      )}
+
+      {/* Column Filters Information */}
+      {hasActiveColumnFilters && (
+        <div className="px-4 py-2 border-t border-gray-100 bg-blue-50 text-xs text-blue-700 flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            <Filter className="h-3 w-3 flex-shrink-0" />
+            <span className="flex-shrink-0">
+              Column Filters: 
+            </span>
+            <div className="flex flex-wrap gap-1 max-w-[80%]">
+              {activeFilterNames.map(column => (
+                <span key={column} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100">
+                  {column}: "{columnFilters[column]}"
+                </span>
+              ))}
+            </div>
+          </div>
+          <button 
+            onClick={clearColumnFilters}
+            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+          >
+            Clear column filters
           </button>
         </div>
       )}

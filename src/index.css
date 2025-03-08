@@ -77,6 +77,104 @@
   .responsive-table-container {
     @apply overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg;
   }
+
+  /* PrimeReact customizations */
+  .p-component {
+    @apply font-sans;
+  }
+
+  .p-datatable .p-datatable-header {
+    @apply bg-white border-gray-200;
+  }
+
+  .p-datatable .p-datatable-thead > tr > th {
+    @apply bg-gray-50 text-gray-700 font-semibold;
+  }
+
+  .p-datatable .p-datatable-tbody > tr {
+    @apply bg-white hover:bg-gray-50;
+  }
+
+  .p-datatable .p-datatable-tbody > tr.p-highlight {
+    @apply bg-blue-50 text-blue-700;
+  }
+
+  .p-datatable .p-datatable-tbody > tr > td {
+    @apply border-gray-200;
+  }
+
+  .p-datatable .p-paginator {
+    @apply bg-white border-gray-200;
+  }
+
+  .p-button {
+    @apply font-medium;
+  }
+
+  .p-button.p-button-success {
+    @apply bg-green-600 border-green-600 hover:bg-green-700 hover:border-green-700;
+  }
+
+  .p-button.p-button-info {
+    @apply bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700;
+  }
+
+  .p-button.p-button-danger {
+    @apply bg-red-600 border-red-600 hover:bg-red-700 hover:border-red-700;
+  }
+
+  .p-tag {
+    @apply text-xs font-medium;
+  }
+
+  .p-dialog .p-dialog-header {
+    @apply bg-white text-gray-800;
+  }
+
+  .p-dialog .p-dialog-content {
+    @apply bg-white text-gray-700;
+  }
+
+  .p-dialog .p-dialog-footer {
+    @apply bg-gray-50 border-t border-gray-200;
+  }
+
+  .p-calendar .p-datepicker {
+    @apply border-gray-200 shadow-lg;
+  }
+
+  .p-badge {
+    @apply font-medium;
+  }
+
+  .p-panel .p-panel-header {
+    @apply bg-gray-50 border-gray-200;
+  }
+
+  .p-panel .p-panel-content {
+    @apply bg-white border-gray-200 p-4;
+  }
+
+  .p-menu {
+    @apply bg-white shadow-lg border-none;
+  }
+
+  .p-menu .p-menuitem {
+    @apply m-0;
+  }
+
+  .p-menu .p-menuitem-link {
+    @apply text-gray-700 hover:bg-gray-50;
+  }
+
+  .p-overlay-panel {
+    @apply shadow-lg border-gray-200;
+  }
+
+  /* Keyboard shortcut styles */
+  .p-keyboard-key {
+    @apply px-2 py-1 text-xs bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono shadow-sm;
+  }
 }
 
 @layer utilities {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, SlidersHorizontal, Search, Tag, Plus, Trash2, Upload, RefreshCcw, Droplets, Settings, X, Check } from 'lucide-react';
+import { Download, SlidersHorizontal, Search, Tag, Plus, Trash2, Upload, RefreshCcw, Droplets, Settings, X, Check, Filter } from 'lucide-react';
 import { SuperTag } from '../../types';
 
 interface TableFiltersProps {
@@ -19,6 +19,10 @@ interface TableFiltersProps {
   handleUnpairGeotab: () => Promise<void>;
   setShowHydrophobicModal: (show: boolean) => void;
   downloadCSV: () => void;
+  // New props for column filter modal
+  columnFilters: Record<string, string>;
+  showColumnFilterModal: boolean;
+  setShowColumnFilterModal: (show: boolean) => void;
 }
 
 export function TableFilters({
@@ -37,7 +41,11 @@ export function TableFilters({
   setShowGeotabModal,
   handleUnpairGeotab,
   setShowHydrophobicModal,
-  downloadCSV
+  downloadCSV,
+  // New props
+  columnFilters,
+  showColumnFilterModal,
+  setShowColumnFilterModal
 }: TableFiltersProps) {
   return (
     <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -75,6 +83,24 @@ export function TableFilters({
           <Tag className="h-4 w-4" />
           <span className="hidden sm:inline">SuperTags only</span>
           {showSuperTagsOnly && <Check className="h-3 w-3 ml-1" />}
+        </button>
+
+        <button
+          onClick={() => setShowColumnFilterModal(true)}
+          className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+            Object.keys(columnFilters).length > 0
+              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+          }`}
+          title="Filter by specific columns"
+        >
+          <Filter className="h-4 w-4" />
+          <span className="hidden sm:inline">Column Filters</span>
+          {Object.keys(columnFilters).length > 0 && (
+            <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
+              {Object.keys(columnFilters).length}
+            </span>
+          )}
         </button>
 
         <button

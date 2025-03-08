@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, LogOut, Menu, X, Settings, ChevronDown, LayoutDashboard } from 'lucide-react';
-import { DataTable } from './DataTable';
+import { PrimeDataTable } from './DataTable/PrimeDataTable';
 import { SiteSelector } from './SiteSelector';
 import { OrganizationSelector } from './OrganizationSelector';
 import { useOrganizations } from '../hooks/useOrganizations';
@@ -273,7 +273,7 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                   <span className="font-medium">Showing data from all sites</span>
                 </div>
               )}
-              <DataTable 
+              <PrimeDataTable 
                 data={data} 
                 auth={{ token: auth.token, username: auth.username }}
                 onDataChange={handleDataChange}
