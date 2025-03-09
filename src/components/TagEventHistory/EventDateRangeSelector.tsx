@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar } from 'primereact/calendar';
 import { Button } from 'primereact/button';
-import { Dropdown } from 'primereact/dropdown';
+import { MultiSelect } from 'primereact/multiselect';
 import { Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 
 interface EventDateRangeSelectorProps {
@@ -9,8 +9,8 @@ interface EventDateRangeSelectorProps {
   onDateRangeChange: (e: any) => void;
   onRefresh: () => Promise<void>;
   loading: boolean;
-  selectedMsgType: string | null;
-  onMsgTypeChange: (type: string | null) => void;
+  selectedMsgTypes: string[];
+  onMsgTypeChange: (types: string[]) => void;
   msgTypeOptions: Array<{ label: string; value: string }>;
 }
 
@@ -19,7 +19,7 @@ export function EventDateRangeSelector({
   onDateRangeChange,
   onRefresh,
   loading,
-  selectedMsgType,
+  selectedMsgTypes,
   onMsgTypeChange,
   msgTypeOptions
 }: EventDateRangeSelectorProps) {
@@ -103,16 +103,19 @@ export function EventDateRangeSelector({
         </div>
       </div>
       
-      <div className="field col-12 md:col-4">
+      <div className="field col-12 md:col-6">
         <label htmlFor="msgTypeFilter" className="font-medium">Filter by Message Type</label>
-        <Dropdown
+        <MultiSelect
           id="msgTypeFilter"
           options={msgTypeOptions}
-          value={selectedMsgType}
+          value={selectedMsgTypes}
           onChange={(e) => onMsgTypeChange(e.value)}
           filter
-          placeholder="Select Event Type"
+          placeholder="Select Event Type(s)"
+          display="chip"
           className="w-full"
+          maxSelectedLabels={3}
+          selectedItemsLabel="{0} types selected"
         />
       </div>
     </div>

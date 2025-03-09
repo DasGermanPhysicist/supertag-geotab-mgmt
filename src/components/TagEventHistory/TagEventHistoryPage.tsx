@@ -9,6 +9,7 @@ import { useTagEventHistory } from '../../hooks/useTagEventHistory';
 import { useAuth } from '../../hooks/useAuth';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatDateForAPI } from '../../utils/dateUtils';
+import { apiService } from '../../services/api';
 
 // Import split components
 import { TagInfoCard } from './TagInfoCard';
@@ -42,22 +43,34 @@ export function TagEventHistoryPage() {
 
   // Table state
   const [globalFilter, setGlobalFilter] = useState('');
-  const [selectedMsgType, setSelectedMsgType] = useState<string | null>(null);
+  const [selectedMsgTypes, setSelectedMsgTypes] = useState<string[]>([]);
   const [filters, setFilters] = useState<Record<string, any>>({});
   
   // Set the current view mode (table or map)
   const [currentView, setCurrentView] = useState<'table' | 'map'>('table');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   
-  // Define initial visible columns, we'll expand this to include more columns by default
+  // Define initial visible columns - prioritize metadata.props over value when they both exist
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
     'time', 
     'metadata.props.msgType', 
     'metadata.props.msgTypeDescription',
-    'metadata.props.latitude',
-    'metadata.props.longitude',
-    'value.latitude',
-    'value.longitude',
+    'formattedAddress',
+    'metadata.props.lowVoltageFlag',
+    'metadata.props.batteryVoltage',
+    'metadata.props.batteryConsumed_mAh',
+    'metadata.props.batteryCapacity_mAh',
+    'metadata.props.evCount-LTEmSuccess',
+    'metadata.props.evCount-LTEmFailure',
+    'metadata.props.chargeState',
+    'metadata.props.fahrenheit',
+    'address_road',
+    'address_city',
+    'address_state',
+    'address_postcode',
+    'address_country',
+    'latitude',
+    'longitude',
     'uuid'
   ]);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
@@ -102,13 +115,92 @@ export function TagEventHistoryPage() {
     hasMore,
     loadMore,
     refresh,
-    allColumns
+    allColumns,
+    setEvents
   } = useTagEventHistory(
     nodeAddress || null,
     auth.token,
     startTime,
     endTime
   );
+
+  // Enhance events with address data
+  useEffect(() => {
+    if (events.length > 0) {
+      // Process events to add address data
+      const enhanceEventsWithAddress = async () => {
+        const enhancedEvents = [...events];
+        let updated = false;
+
+        for (let i = 0; i < enhancedEvents.length; i++) {
+          const event = enhancedEvents[i];
+          
+          // Skip if already has address data
+          if (event.formattedAddress) continue;
+
+          // Find latitude and longitude from event data
+          let latitude = null;
+          let longitude = null;
+
+          // Check various places for coordinates
+          if (event.metadata?.props?.latitude && event.metadata?.props?.longitude) {
+            latitude = event.metadata.props.latitude;
+            longitude = event.metadata.props.longitude;
+          } else if (event.value?.latitude && event.value?.longitude) {
+            latitude = event.value.latitude;
+            longitude = event.value.longitude;
+          } else if (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) {
+            latitude = event.metadata.props.lat;
+            longitude = event.metadata.props.lng || event.metadata.props.lon;
+          } else if (event.value?.lat && (event.value?.lng || event.value?.lon)) {
+            latitude = event.value.lat;
+            longitude = event.value.lng || event.value.lon;
+          }
+
+          // If we found coordinates, fetch address
+          if (latitude && longitude) {
+            try {
+              // Convert to numbers if they're strings
+              const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+              const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+              
+              // Skip if values can't be parsed
+              if (isNaN(lat) || isNaN(lon)) continue;
+              
+              // Fetch address data
+              const addressData = await apiService.fetchAddressFromCoordinates(lat, lon);
+              
+              // Add address data to the event
+              enhancedEvents[i] = {
+                ...event,
+                addressData: addressData,
+                formattedAddress: addressData.display_name,
+                // Add individual address components
+                ...Object.keys(addressData.address || {}).reduce((obj, key) => {
+                  obj[`address_${key}`] = addressData.address[key];
+                  return obj;
+                }, {} as Record<string, string>),
+                // Ensure these are always available and not overridden
+                latitude: lat,
+                longitude: lon
+              };
+              
+              updated = true;
+            } catch (err) {
+              console.error(`Error fetching address for event:`, err);
+            }
+          }
+        }
+
+        // Only update if we actually modified events
+        if (updated) {
+          setEvents(enhancedEvents);
+        }
+      };
+
+      enhanceEventsWithAddress();
+    }
+  }, [events, setEvents]);
   
   // Update column order when allColumns changes
   useEffect(() => {
@@ -173,7 +265,8 @@ export function TagEventHistoryPage() {
       if ((event.metadata?.props?.latitude && event.metadata?.props?.longitude) ||
           (event.value?.latitude && event.value?.longitude) ||
           (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) ||
-          (event.value?.lat && (event.value?.lng || event.value?.lon))) {
+          (event.value?.lat && (event.value?.lng || event.value?.lon)) ||
+          (event.latitude && event.longitude)) {
         
         hasLocation = true;
         count.total++;
@@ -230,7 +323,7 @@ export function TagEventHistoryPage() {
     dt.current?.reset();
     setGlobalFilter('');
     setFilters({});
-    setSelectedMsgType(null);
+    setSelectedMsgTypes([]);
   };
   
   // Handle date range change - improved to handle all cases
@@ -325,6 +418,10 @@ export function TagEventHistoryPage() {
       else if (field.field === 'value.latitude') {
         longitude = rowData.value?.longitude;
       }
+      // If this is the top-level latitude field
+      else if (field.field === 'latitude') {
+        longitude = rowData.longitude;
+      }
       
       if (longitude !== undefined) {
         return <EventLocationInfo latitude={value} longitude={longitude} />;
@@ -340,16 +437,39 @@ export function TagEventHistoryPage() {
       return isNaN(num) ? value : num.toFixed(6);
     }
     
-    // Format temperature
-    if (fieldName.includes('temp') || fieldName.includes('temperature')) {
+    // Format temperature (including fahrenheit)
+    if (fieldName.includes('temp') || fieldName.includes('temperature') || fieldName.includes('fahrenheit')) {
       const num = parseFloat(value);
       if (!isNaN(num)) {
-        return `${num.toFixed(1)}°`;
+        return fieldName.includes('fahrenheit') ? `${num.toFixed(1)}°F` : `${num.toFixed(1)}°C`;
       }
     }
     
-    // Format percentage values
-    if (fieldName.includes('percent') || fieldName.includes('battery') || fieldName.includes('level')) {
+    // Format battery voltage (not a percentage, but a voltage value)
+    if (fieldName.includes('batteryVoltage')) {
+      const num = parseFloat(value);
+      if (!isNaN(num)) {
+        return `${num.toFixed(2)}V`;
+      }
+    }
+    
+    // Format battery consumption and capacity (could be percentage, but keep as raw value)
+    if (fieldName.includes('batteryconsumed_mah')) {
+      const num = parseFloat(value);
+      if (!isNaN(num)) {
+        return `${num.toFixed(2)} mAh`;
+      }
+    }
+
+    if (fieldName.includes('batterycapacity_mah')) {
+      const num = parseFloat(value);
+      if (!isNaN(num)) {
+        return `${num.toFixed(2)} mAh`;
+      }
+    }
+    
+    // Format other percentage values
+    if (fieldName.includes('percent') || fieldName.includes('level')) {
       const num = parseFloat(value);
       if (!isNaN(num) && num <= 1) {
         return `${(num * 100).toFixed(0)}%`;
@@ -379,6 +499,53 @@ export function TagEventHistoryPage() {
       const num = parseFloat(value);
       if (!isNaN(num)) {
         return `±${num.toFixed(1)}m`;
+      }
+    }
+    
+    // Format boolean values specifically for lowVoltageFlag
+    if (fieldName.includes('lowvoltageflag')) {
+      const isLowVoltage = value === true || value === 'true';
+      return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+          isLowVoltage ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+        }`}>
+          {isLowVoltage ? 'Low' : 'OK'}
+        </span>
+      );
+    }
+    
+    // Format chargeState
+    if (fieldName.includes('chargestate')) {
+      let state = String(value).toLowerCase();
+      let color = 'gray';
+      
+      switch (state) {
+        case 'charging':
+          color = 'green';
+          break;
+        case 'discharging':
+          color = 'yellow';
+          break;
+        case 'full':
+          color = 'blue';
+          break;
+        case 'low':
+          color = 'red';
+          break;
+      }
+      
+      return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-800`}>
+          {state.charAt(0).toUpperCase() + state.slice(1)}
+        </span>
+      );
+    }
+    
+    // Format event count values
+    if (fieldName.includes('evcount')) {
+      const num = parseInt(value, 10);
+      if (!isNaN(num)) {
+        return num.toString();
       }
     }
     
@@ -465,6 +632,15 @@ export function TagEventHistoryPage() {
         flattenObject(event.value, 'value');
       }
       
+      // Add top level properties like address
+      Object.entries(event).forEach(([key, value]) => {
+        if (!key.startsWith('metadata') && !key.startsWith('value') && 
+            key !== 'uuid' && key !== 'time' && key !== 'type' && 
+            key !== 'links' && key !== 'tags') {
+          flatEvent[key] = value;
+        }
+      });
+      
       return flatEvent;
     });
     
@@ -507,17 +683,20 @@ export function TagEventHistoryPage() {
     }));
   }, [events]);
   
-  // Handle message type filter
-  const handleMsgTypeFilterChange = (type: string | null) => {
-    setSelectedMsgType(type);
+  // Handle message type filter - updated to work with multiple selections
+  const handleMsgTypeFilterChange = (types: string[]) => {
+    setSelectedMsgTypes(types);
     
     const newFilters = { ...filters };
     
-    if (type) {
-      // Initialize the filter structure properly
-      newFilters['metadata.props.msgType'] = { value: type, matchMode: 'equals' };
+    if (types && types.length > 0) {
+      // Initialize the filter structure properly for multiple values
+      newFilters['metadata.props.msgType'] = { 
+        value: types, 
+        matchMode: 'in' 
+      };
     } else {
-      // Remove filter if no type selected
+      // Remove filter if no types selected
       delete newFilters['metadata.props.msgType'];
     }
     
@@ -622,7 +801,7 @@ export function TagEventHistoryPage() {
           onDateRangeChange={handleDateRangeChange}
           onRefresh={handleRefresh}
           loading={loading}
-          selectedMsgType={selectedMsgType}
+          selectedMsgTypes={selectedMsgTypes}
           onMsgTypeChange={handleMsgTypeFilterChange}
           msgTypeOptions={msgTypeOptions}
         />

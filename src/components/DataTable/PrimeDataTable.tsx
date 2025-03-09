@@ -310,7 +310,7 @@ export function PrimeDataTable({
         dataKey="macAddress"
         paginator
         rows={10}
-        rowsPerPageOptions={[5, 10, 25, 50]}
+        rowsPerPageOptions={[5, 10, 25, 50, 100, 500, 1000]}
         paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
         currentPageReportTemplate="{first} to {last} of {totalRecords}"
         emptyMessage="No tags found"
@@ -325,6 +325,7 @@ export function PrimeDataTable({
         onRowClick={(e) => actions.setSelectedRow(e.data)}
         selectionMode="single"
         selection={state.selectedRow}
+        reorderableColumns
       >
         {/* Actions column - moved to leftmost position */}
         <Column 

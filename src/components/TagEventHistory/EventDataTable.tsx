@@ -6,7 +6,7 @@ import { Tag } from 'primereact/tag';
 import { GripVertical } from 'lucide-react';
 import { InputText } from 'primereact/inputtext';
 import { Calendar } from 'primereact/calendar';
-import { Dropdown } from 'primereact/dropdown';
+import { MultiSelect } from 'primereact/multiselect';
 import { TagEvent } from '../../types';
 import { getMessageTypeName } from '../../constants/messageTypes';
 
@@ -125,6 +125,12 @@ export function EventDataTable({
       onEventSelect(e.data.uuid);
     }
   };
+
+  // Create a unique identifier for each event that combines uuid with timestamp
+  // This ensures even if we have the same UUID from different result sets, we can distinguish them
+  const getRowKey = (event: TagEvent) => {
+    return `${event.uuid}_${event.time}`;
+  };
   
   return (
     <div className="card">
@@ -133,7 +139,7 @@ export function EventDataTable({
         value={events}
         paginator
         rows={10}
-        rowsPerPageOptions={[5, 10, 25, 50]}
+        rowsPerPageOptions={[5, 10, 25, 50, 100, 500, 1000]}
         tableStyle={{ minWidth: '50rem' }}
         loading={loading}
         filters={filters}
@@ -149,8 +155,31 @@ export function EventDataTable({
         onRowClick={handleRowSelection}
         selectionMode="single"
         selection={events.find(e => e.uuid === selectedEventId)}
-        dataKey="uuid"
+        dataKey={getRowKey}
         rowClassName={(data) => data.uuid === selectedEventId ? 'bg-blue-50' : ''}
+        reorderableColumns
+        onColReorder={(e) => {
+          // Update the column order when columns are reordered
+          if (e.columns) {
+            const newOrder = e.columns.map(col => col.props.field);
+            // Create a new array with all columns, preserving those not visible in the current view
+            const updatedOrder = [...columnOrder];
+            // Find each column in the old order and update its position
+            newOrder.forEach((field, index) => {
+              const oldIndex = updatedOrder.findIndex(f => f === field);
+              if (oldIndex !== -1) {
+                // Remove from old position
+                const [col] = updatedOrder.splice(oldIndex, 1);
+                // Insert at new position
+                updatedOrder.splice(index, 0, col);
+              }
+            });
+            // Update column order state
+            if (updatedOrder.length === columnOrder.length) {
+              handleDragStart(null);
+            }
+          }
+        }}
       >
         {/* Action column for row-to-map sync if provided */}
         {actionTemplate && (
@@ -203,15 +232,16 @@ export function EventDataTable({
           filterField="metadata.props.msgType"
           showFilterMenu={false}
           filterElement={(options) => (
-            <Dropdown
-              value={options.value || ''}
+            <MultiSelect
+              value={options.value || []}
               options={[
-                { label: 'All', value: '' },
                 ...msgTypeOptions
               ]}
               onChange={(e) => safeFilterCallback("metadata.props.msgType", e.value, options.index)}
-              placeholder="Select Type"
+              placeholder="Select Types"
+              maxSelectedLabels={1}
               className="p-column-filter w-full"
+              display="chip"
             />
           )}
         />

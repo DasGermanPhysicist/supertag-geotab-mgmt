@@ -12,6 +12,7 @@ interface UseTagEventHistoryResult {
   loadMore: () => Promise<void>;
   refresh: (startTime: string, endTime: string) => Promise<void>;
   allColumns: string[];
+  setEvents: (events: TagEvent[]) => void; // Add setter for events to allow updating with address data
 }
 
 export function useTagEventHistory(
@@ -49,8 +50,21 @@ export function useTagEventHistory(
       );
       
       if (pageId) {
-        // If loading more, append results
-        setEvents(prev => [...prev, ...data.results]);
+        // If loading more, append results but avoid duplicates based on UUID
+        setEvents(prev => {
+          // Create a map of existing UUIDs
+          const existingUuids = new Map<string, boolean>();
+          prev.forEach(event => {
+            existingUuids.set(event.uuid, true);
+          });
+          
+          // Filter out any results that already exist in the previous data
+          const uniqueNewResults = data.results.filter(
+            newEvent => !existingUuids.has(newEvent.uuid)
+          );
+          
+          return [...prev, ...uniqueNewResults];
+        });
       } else {
         // If new search, replace results
         setEvents(data.results);
@@ -73,6 +87,21 @@ export function useTagEventHistory(
   const extractAllColumns = (eventResults: TagEvent[]) => {
     // Initialize with basic event properties
     const columns = new Set<string>(['uuid', 'time', 'type']);
+    
+    // First, add all address-related columns to ensure they're included
+    const addressColumns = [
+      'formattedAddress', 
+      'address_road', 
+      'address_city', 
+      'address_county',
+      'address_state', 
+      'address_postcode', 
+      'address_country',
+      'latitude',
+      'longitude'
+    ];
+    
+    addressColumns.forEach(col => columns.add(col));
     
     // Recursive function to extract all levels of nested properties
     const extractNestedProperties = (obj: any, prefix: string = '') => {
@@ -119,7 +148,10 @@ export function useTagEventHistory(
       // Special handling for common but deeply nested properties
       const specialProperties = [
         'latitude', 'longitude', 'lat', 'lon', 'lng', 'accuracy', 
-        'altitude', 'speed', 'heading', 'batteryLevel'
+        'altitude', 'speed', 'heading', 'batteryLevel', 'batteryVoltage',
+        'batteryConsumed', 'batteryCapacity', 'lowVoltageFlag', 'batteryConsumed_mAh',
+        'batteryCapacity_mAh', 'evCount-LTEmSuccess', 'evCount-LTEmFailure',
+        'chargeState', 'fahrenheit'
       ];
       
       // Search for special properties in all nested objects
@@ -130,7 +162,7 @@ export function useTagEventHistory(
           const currentPath = prefix ? `${prefix}.${key}` : key;
           
           // Check if the current key is one of our special properties
-          if (specialProperties.includes(key.toLowerCase())) {
+          if (specialProperties.some(prop => key.toLowerCase().includes(prop.toLowerCase()))) {
             columns.add(currentPath);
           }
           
@@ -150,19 +182,26 @@ export function useTagEventHistory(
     const columnsArray = Array.from(columns);
     
     // Define priority order for column groups
-    const priorityOrder = ['time', 'uuid', 'type', 'metadata.props.msgType'];
+    const priorityOrder = [
+      'time', 'uuid', 'type', 'metadata.props.msgType', 'metadata.props.msgTypeDescription',
+      'formattedAddress', 'address_road', 'address_city', 'address_state', 'address_postcode', 'address_country',
+      'latitude', 'longitude', 'metadata.props.latitude', 'metadata.props.longitude',
+      'metadata.props.lowVoltageFlag', 'metadata.props.batteryVoltage', 'metadata.props.batteryConsumed_mAh', 
+      'metadata.props.batteryCapacity_mAh', 'metadata.props.evCount-LTEmSuccess', 'metadata.props.evCount-LTEmFailure',
+      'metadata.props.chargeState', 'metadata.props.fahrenheit'
+    ];
     
     // Sort columns with prioritized columns first, then by categories
     const sortedColumns = [
       // First, include priority columns in their defined order
       ...priorityOrder.filter(col => columnsArray.includes(col)),
       
-      // Then include metadata.props columns (except msgType which is already included)
+      // Then include metadata.props columns (except those already included)
       ...columnsArray.filter(col => 
         col.startsWith('metadata.props.') && !priorityOrder.includes(col)
       ),
       
-      // Then include location/position related columns
+      // Then include location/position related columns not yet included
       ...columnsArray.filter(col => 
         (col.includes('lat') || col.includes('lon') || col.includes('lng') || 
          col.includes('accuracy') || col.includes('altitude') || col.includes('position')) &&
@@ -187,7 +226,8 @@ export function useTagEventHistory(
         !col.startsWith('value.') && 
         !priorityOrder.includes(col) &&
         !(col.includes('lat') || col.includes('lon') || col.includes('lng') || 
-          col.includes('accuracy') || col.includes('altitude') || col.includes('position'))
+          col.includes('accuracy') || col.includes('altitude') || col.includes('position')) &&
+        !addressColumns.includes(col)
       )
     ];
     
@@ -234,6 +274,7 @@ export function useTagEventHistory(
     hasMore: !!nextPageId,
     loadMore,
     refresh,
-    allColumns
+    allColumns,
+    setEvents // Expose the setter to allow updating events with address data
   };
 }
