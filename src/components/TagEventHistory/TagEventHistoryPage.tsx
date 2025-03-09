@@ -10,7 +10,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatDateForAPI } from '../../utils/dateUtils';
 import { apiService } from '../../services/api';
-import { useSuperTags } from '../../hooks/useSuperTags';
 
 // Import split components
 import { TagInfoCard } from './TagInfoCard';
@@ -84,6 +83,10 @@ export function TagEventHistoryPage() {
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   
+  // Site-specific tag data for mapping
+  const [siteTagData, setSiteTagData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
   // Get formatted dates for API
   const getFormattedDates = () => {
     let start = oneDayAgo;
@@ -109,32 +112,53 @@ export function TagEventHistoryPage() {
   // Get current date range values
   const { startTime, endTime } = getFormattedDates();
   
-  // Fetch ALL available tags for mapping source SuperTag IDs to names
-  // This is important - we want to load ALL tags from all sites to ensure complete mapping
-  const { data: allTags } = useSuperTags(auth.token, null, []);
+  // Fetch tag data for the specific site
+  useEffect(() => {
+    const fetchSiteSpecificTags = async () => {
+      if (!auth.token || !tag.siteId) return;
+      
+      try {
+        setLoading(true);
+        console.log(`Fetching tags for site ${tag.siteId}`);
+        
+        // Fetch tags for the specific site only
+        const tagsData = await apiService.fetchTags(tag.siteId, auth.token);
+        
+        console.log(`Retrieved ${tagsData.length} tags from site ${tag.siteId}`);
+        setSiteTagData(tagsData);
+        
+      } catch (error) {
+        console.error('Error fetching site tags:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSiteSpecificTags();
+  }, [auth.token, tag.siteId]);
   
-  // Create a map of nodeAddress to nodeName for quick lookups
+  // Create a map of nodeAddress to nodeName for quick lookups using site-specific data
   const tagMap = useMemo(() => {
     const map = new Map<string, string>();
     
-    console.log("Building tag map with", allTags.length, "tags");
+    console.log("Building tag map with", siteTagData.length, "tags from site");
     
     // First, map nodeAddress to nodeName
-    allTags.forEach(tag => {
+    siteTagData.forEach(tag => {
       if (tag.nodeAddress && tag.nodeName) {
         map.set(tag.nodeAddress, tag.nodeName);
       }
     });
     
     // Also map macAddress to nodeName as fallback
-    allTags.forEach(tag => {
+    siteTagData.forEach(tag => {
       if (tag.macAddress && tag.nodeName) {
         map.set(tag.macAddress, tag.nodeName);
       }
     });
     
     // Additionally map specific variations of the nodeAddress format that might appear in sourceSupertagId
-    allTags.forEach(tag => {
+    siteTagData.forEach(tag => {
       if (tag.nodeAddress && tag.nodeName) {
         // Try different variations of the nodeAddress format
         const cleanNodeAddress = tag.nodeAddress.replace(/\$/g, '').replace(/\-/g, '');
@@ -150,7 +174,7 @@ export function TagEventHistoryPage() {
     });
     
     if (map.size > 0) {
-      console.log(`Created tag map with ${map.size} entries`);
+      console.log(`Created tag map with ${map.size} entries from site-specific data`);
       
       // Log a few sample entries for debugging
       let count = 0;
@@ -165,11 +189,11 @@ export function TagEventHistoryPage() {
     }
     
     return map;
-  }, [allTags]);
+  }, [siteTagData]);
   
   // Fetch event history
   const {
-    loading,
+    loading: eventLoading,
     error,
     eventHistory,
     events,
@@ -924,7 +948,7 @@ export function TagEventHistoryPage() {
           dateRange={dateRange}
           onDateRangeChange={handleDateRangeChange}
           onRefresh={handleRefresh}
-          loading={loading}
+          loading={eventLoading || loading}
           selectedMsgTypes={selectedMsgTypes}
           onMsgTypeChange={handleMsgTypeFilterChange}
           msgTypeOptions={msgTypeOptions}
@@ -974,7 +998,7 @@ export function TagEventHistoryPage() {
         {currentView === 'table' ? (
           <EventDataTable
             events={events}
-            loading={loading}
+            loading={eventLoading}
             filters={filters}
             columnFilterMenuVisible={columnFilterMenuVisible}
             globalFilter={globalFilter}
@@ -1006,10 +1030,10 @@ export function TagEventHistoryPage() {
           <div className="flex justify-center mt-2 mb-2">
             <button
               onClick={loadMore}
-              disabled={loading}
+              disabled={eventLoading}
               className="btn btn-secondary"
             >
-              {loading ? 'Loading...' : 'Load More Events'}
+              {eventLoading ? 'Loading...' : 'Load More Events'}
             </button>
           </div>
         )}
