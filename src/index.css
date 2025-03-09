@@ -201,6 +201,85 @@
     @apply bg-blue-600 text-white border-blue-700;
   }
 
+  /* Leaflet map customizations */
+  .leaflet-container {
+    width: 100%;
+    height: 400px;
+    border-radius: 0.5rem;
+    z-index: 1;
+  }
+
+  .event-map-container {
+    position: relative;
+    width: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+  }
+
+  .event-marker-default {
+    background-color: rgba(59, 130, 246, 0.7);
+    border: 2px solid #2563eb;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .event-marker-selected {
+    background-color: rgba(239, 68, 68, 0.7);
+    border: 2px solid #dc2626;
+    width: 16px;
+    height: 16px;
+    transform: translateX(-2px) translateY(-2px);
+  }
+
+  .event-marker-pulse {
+    animation: marker-pulse 1.5s infinite;
+  }
+
+  .event-marker-trail {
+    background-color: rgba(59, 130, 246, 0.4);
+    border: 1px solid rgba(59, 130, 246, 0.6);
+    width: 8px;
+    height: 8px;
+  }
+
+  .event-popup {
+    min-width: 200px;
+  }
+
+  .map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    background-color: white;
+    padding: 6px;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .map-controls button {
+    @apply bg-white text-gray-700 hover:bg-gray-100 border border-gray-300 rounded p-1;
+  }
+
+  @keyframes marker-pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+  }
+
   /* Keyboard shortcut styles */
   .p-keyboard-key {
     @apply px-2 py-1 text-xs bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono shadow-sm;

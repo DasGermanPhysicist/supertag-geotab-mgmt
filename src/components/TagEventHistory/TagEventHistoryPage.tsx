@@ -17,6 +17,8 @@ import { EventTableToolbar } from './EventTableToolbar';
 import { EventColumnSelector } from './EventColumnSelector';
 import { EventDataTable } from './EventDataTable';
 import { EventLocationInfo } from './EventLocationInfo';
+import { EventMap } from './EventMap';
+import { EventViewSelector } from './EventViewSelector';
 
 export function TagEventHistoryPage() {
   // Navigation and route parameters
@@ -41,6 +43,10 @@ export function TagEventHistoryPage() {
   const [globalFilter, setGlobalFilter] = useState('');
   const [selectedMsgType, setSelectedMsgType] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, any>>({});
+  
+  // Set the current view mode (table or map)
+  const [currentView, setCurrentView] = useState<'table' | 'map'>('table');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   
   // Define initial visible columns, we'll expand this to include more columns by default
   const [visibleColumns, setVisibleColumns] = useState<string[]>([
@@ -143,6 +149,23 @@ export function TagEventHistoryPage() {
       core: filteredColumns.filter(col => !col.startsWith('metadata.') && !col.startsWith('value.'))
     };
   }, [filteredColumns]);
+  
+  // Count events with location data
+  const locationDataCount = useMemo(() => {
+    let count = 0;
+    
+    events.forEach(event => {
+      // Check various location properties
+      if ((event.metadata?.props?.latitude && event.metadata?.props?.longitude) ||
+          (event.value?.latitude && event.value?.longitude) ||
+          (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) ||
+          (event.value?.lat && (event.value?.lng || event.value?.lon))) {
+        count++;
+      }
+    });
+    
+    return count;
+  }, [events]);
   
   // Display error messages
   useEffect(() => {
@@ -489,6 +512,22 @@ export function TagEventHistoryPage() {
     }
   };
 
+  // Handle event selection (for synchronizing between table and map)
+  const handleEventSelect = (eventId: string) => {
+    setSelectedEventId(eventId);
+    
+    // If in table view, we would scroll to and highlight the row
+    if (currentView === 'table' && dt.current) {
+      // Find the event in the data
+      const event = events.find(e => e.uuid === eventId);
+      if (event) {
+        // Highlight the row in the DataTable
+        // Note: This depends on PrimeReact DataTable API
+        dt.current.selectRow(event);
+      }
+    }
+  };
+
   // Handle click outside column selector dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -556,24 +595,54 @@ export function TagEventHistoryPage() {
           />
         </div>
         
-        {/* Event Data Table */}
-        <EventDataTable
-          events={events}
-          loading={loading}
-          filters={filters}
-          columnFilterMenuVisible={columnFilterMenuVisible}
-          globalFilter={globalFilter}
-          safeFilterCallback={safeFilterCallback}
-          hasMore={hasMore}
-          loadMore={loadMore}
-          visibleColumns={visibleColumns}
-          columnOrder={columnOrder}
-          handleDragStart={handleDragStart}
-          handleDragOver={handleDragOver}
-          nestedPropertyTemplate={nestedPropertyTemplate}
-          dtRef={dt}
-          msgTypeOptions={msgTypeOptions}
+        {/* View selector for table/map */}
+        <EventViewSelector
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          locationCount={locationDataCount}
+          totalCount={events.length}
         />
+        
+        {/* Show the current view (table or map) */}
+        {currentView === 'table' ? (
+          <EventDataTable
+            events={events}
+            loading={loading}
+            filters={filters}
+            columnFilterMenuVisible={columnFilterMenuVisible}
+            globalFilter={globalFilter}
+            safeFilterCallback={safeFilterCallback}
+            hasMore={hasMore}
+            loadMore={loadMore}
+            visibleColumns={visibleColumns}
+            columnOrder={columnOrder}
+            handleDragStart={handleDragStart}
+            handleDragOver={handleDragOver}
+            nestedPropertyTemplate={nestedPropertyTemplate}
+            dtRef={dt}
+            msgTypeOptions={msgTypeOptions}
+          />
+        ) : (
+          <EventMap
+            events={events}
+            selectedEventId={selectedEventId}
+            onEventSelect={handleEventSelect}
+            mapHeight={500}
+          />
+        )}
+        
+        {/* Load more button for both views */}
+        {currentView === 'map' && hasMore && (
+          <div className="flex justify-center mt-2 mb-2">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="btn btn-secondary"
+            >
+              {loading ? 'Loading...' : 'Load More Events'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
