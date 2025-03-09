@@ -19,6 +19,7 @@ import { EventDataTable } from './EventDataTable';
 import { EventLocationInfo } from './EventLocationInfo';
 import { EventMap } from './EventMap';
 import { EventViewSelector } from './EventViewSelector';
+import { EventRowMapSync } from './EventRowMapSync';
 
 export function TagEventHistoryPage() {
   // Navigation and route parameters
@@ -150,21 +151,66 @@ export function TagEventHistoryPage() {
     };
   }, [filteredColumns]);
   
-  // Count events with location data
-  const locationDataCount = useMemo(() => {
-    let count = 0;
+  // Count events with location data and prepare a lookup map
+  const locationDataInfo = useMemo(() => {
+    const count = {
+      total: 0,
+      gps: 0,
+      wifi: 0,
+      cellId: 0,
+      lbOnly: 0,
+      unknown: 0
+    };
+    
+    // Map to track which events have location data
+    const eventHasLocation = new Map<string, boolean>();
     
     events.forEach(event => {
+      let hasLocation = false;
+      let locationType = 'unknown';
+      
       // Check various location properties
       if ((event.metadata?.props?.latitude && event.metadata?.props?.longitude) ||
           (event.value?.latitude && event.value?.longitude) ||
           (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) ||
           (event.value?.lat && (event.value?.lng || event.value?.lon))) {
-        count++;
+        
+        hasLocation = true;
+        count.total++;
+        
+        // Try to determine the location type
+        if (event.metadata?.props?.msgType) {
+          const msgType = event.metadata.props.msgType;
+          switch (msgType) {
+            case '4':
+              locationType = 'lbOnly';
+              count.lbOnly++;
+              break;
+            case '5':
+              locationType = 'gps';
+              count.gps++;
+              break;
+            case '6':
+              locationType = 'wifi';
+              count.wifi++;
+              break;
+            case '7':
+              locationType = 'cellId';
+              count.cellId++;
+              break;
+            default:
+              count.unknown++;
+          }
+        } else {
+          count.unknown++;
+        }
       }
+      
+      // Store in the map
+      eventHasLocation.set(event.uuid, hasLocation);
     });
     
-    return count;
+    return { count, eventHasLocation };
   }, [events]);
   
   // Display error messages
@@ -353,6 +399,25 @@ export function TagEventHistoryPage() {
     return String(value);
   };
   
+  // Custom action template to add "Show on Map" button for events with location
+  const actionTemplate = (rowData: any) => {
+    // Check if this event has location data
+    const hasLocation = locationDataInfo.eventHasLocation.get(rowData.uuid) || false;
+    
+    if (!hasLocation) return null;
+    
+    return (
+      <EventRowMapSync
+        eventId={rowData.uuid}
+        time={rowData.time}
+        locationAvailable={hasLocation}
+        selectedEventId={selectedEventId}
+        onEventSelect={(id) => handleEventSelect(id)}
+        setCurrentView={setCurrentView}
+      />
+    );
+  };
+  
   // Export to Excel with all data
   const exportCSV = () => {
     if (!events.length) return;
@@ -516,14 +581,13 @@ export function TagEventHistoryPage() {
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     
-    // If in table view, we would scroll to and highlight the row
+    // If in table view and the event has location, find and highlight the row
     if (currentView === 'table' && dt.current) {
       // Find the event in the data
       const event = events.find(e => e.uuid === eventId);
       if (event) {
-        // Highlight the row in the DataTable
-        // Note: This depends on PrimeReact DataTable API
-        dt.current.selectRow(event);
+        // Scroll to and select the row in the table
+        dt.current.scrollToSelection();
       }
     }
   };
@@ -599,7 +663,7 @@ export function TagEventHistoryPage() {
         <EventViewSelector
           currentView={currentView}
           setCurrentView={setCurrentView}
-          locationCount={locationDataCount}
+          locationCount={locationDataInfo.count.total}
           totalCount={events.length}
         />
         
@@ -621,6 +685,9 @@ export function TagEventHistoryPage() {
             nestedPropertyTemplate={nestedPropertyTemplate}
             dtRef={dt}
             msgTypeOptions={msgTypeOptions}
+            actionTemplate={actionTemplate}
+            selectedEventId={selectedEventId}
+            onEventSelect={handleEventSelect}
           />
         ) : (
           <EventMap

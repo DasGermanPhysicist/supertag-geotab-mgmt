@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMapEvents, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
-import { Map, MapPin, Layers, Navigation, CornerUpLeft, ZoomIn, Route, RefreshCcw, ExternalLink } from 'lucide-react';
+import { Map, MapPin, Layers, Navigation, CornerUpLeft, ZoomIn, Route, RefreshCcw, ExternalLink, Info } from 'lucide-react';
 import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import { ToggleButton } from 'primereact/togglebutton';
@@ -32,6 +32,7 @@ interface LocationPoint {
   batteryLevel?: number | string;
   formattedTime?: string;
   source: string; // The property path where this location was found
+  locationType?: 'wifi' | 'gps' | 'cellId' | 'lb-only' | 'unknown'; // Type of location data
 }
 
 interface EventMapProps {
@@ -61,6 +62,61 @@ function useLocationData(events: any[]) {
         // Format the timestamp for display
         const formattedTime = new Date(event.time).toLocaleString();
         
+        // Determine location type based on msgType or other properties
+        let locationType: 'wifi' | 'gps' | 'cellId' | 'lb-only' | 'unknown' = 'unknown';
+        
+        // Check message type
+        const msgType = event.metadata?.props?.msgType;
+        if (msgType) {
+          switch (msgType) {
+            case '4':
+              locationType = 'lb-only';
+              break;
+            case '5':
+              locationType = 'gps';
+              break;
+            case '6':
+              locationType = 'wifi';
+              break;
+            case '7':
+              locationType = 'cellId';
+              break;
+            default:
+              // Try to infer type from other properties if possible
+              if (source.includes('gps') || source.includes('GPS')) {
+                locationType = 'gps';
+              } else if (source.includes('wifi') || source.includes('WiFi')) {
+                locationType = 'wifi';
+              } else if (source.includes('cell') || source.includes('Cell')) {
+                locationType = 'cellId';
+              } else if (source.includes('lb-only') || source.includes('LB')) {
+                locationType = 'lb-only';
+              }
+          }
+        } else {
+          // Try to infer type from source and data properties
+          if (event.metadata?.props?.locationSource) {
+            const locationSource = event.metadata.props.locationSource.toLowerCase();
+            if (locationSource.includes('gps')) {
+              locationType = 'gps';
+            } else if (locationSource.includes('wifi')) {
+              locationType = 'wifi';
+            } else if (locationSource.includes('cell')) {
+              locationType = 'cellId';
+            } else if (locationSource.includes('lb')) {
+              locationType = 'lb-only';
+            }
+          } else if (source.includes('gps') || source.includes('GPS')) {
+            locationType = 'gps';
+          } else if (source.includes('wifi') || source.includes('WiFi')) {
+            locationType = 'wifi';
+          } else if (source.includes('cell') || source.includes('Cell')) {
+            locationType = 'cellId';
+          } else if (source.includes('lb-only') || source.includes('LB')) {
+            locationType = 'lb-only';
+          }
+        }
+        
         // Create a location point object
         locationPoints.push({
           lat: latitude,
@@ -74,7 +130,8 @@ function useLocationData(events: any[]) {
           speed: event.metadata?.props?.speed || event.value?.speed,
           batteryLevel: event.metadata?.props?.batteryLevel || event.value?.batteryLevel,
           formattedTime,
-          source
+          source,
+          locationType
         });
       };
       
@@ -165,12 +222,88 @@ function MapController({ onViewReset, onLocate }: { onViewReset: () => void, onL
   return null;
 }
 
+// Map legend component
+function MapLegend() {
+  const [expanded, setExpanded] = useState(true);
+  
+  return (
+    <div className="absolute bottom-8 right-2 z-50 bg-white rounded-lg shadow-md p-2 max-w-xs">
+      <div className="flex items-center justify-between border-b pb-1 mb-2">
+        <h4 className="text-sm font-medium text-gray-700 flex items-center">
+          <Info className="h-3 w-3 mr-1" /> Map Legend
+        </h4>
+        <button 
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-gray-500 hover:text-gray-700"
+        >
+          {expanded ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      
+      {expanded && (
+        <div className="text-xs space-y-2">
+          <div className="space-y-1">
+            <h5 className="font-medium text-gray-600">Location Types:</h5>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+              <div className="flex items-center">
+                <div className="h-3 w-3 rounded-full bg-green-500 border-2 border-green-700 mr-1"></div>
+                <span>GPS</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-3 w-3 rounded-full bg-blue-500 border-2 border-blue-700 mr-1"></div>
+                <span>WiFi</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-3 w-3 rounded-full bg-purple-500 border-2 border-purple-700 mr-1"></div>
+                <span>Cell ID</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-3 w-3 rounded-full bg-orange-500 border-2 border-orange-700 mr-1"></div>
+                <span>LB-Only</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-3 w-3 rounded-full bg-gray-500 border-2 border-gray-700 mr-1"></div>
+                <span>Unknown</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-1">
+            <h5 className="font-medium text-gray-600">Special Markers:</h5>
+            <div className="grid grid-cols-1 gap-1">
+              <div className="flex items-center">
+                <div className="h-4 w-4 rounded-full bg-yellow-500 border-2 border-yellow-700 mr-1 animate-pulse"></div>
+                <span>Latest Point</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-4 w-4 rounded-full bg-red-500 border-2 border-red-700 mr-1"></div>
+                <span>Earliest Point</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-4 w-4 rounded-full bg-blue-500 border-2 border-blue-700 mr-1 shadow-lg"></div>
+                <span>Selected Point</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="pt-1 border-t border-gray-200">
+            <p className="text-gray-500">
+              Click on any point to select it and see details. The path shows the chronological sequence of events.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 500 }: EventMapProps) {
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
   const locationPoints = useLocationData(events);
   const [showPath, setShowPath] = useState(true);
   const [selectedPoint, setSelectedPoint] = useState<string | null>(selectedEventId || null);
   const [mapType, setMapType] = useState<'streets' | 'satellite'>('streets');
+  const [showLegend, setShowLegend] = useState(true);
 
   // Set up the center point for the map
   const mapCenter = useMemo(() => {
@@ -244,21 +377,66 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
     }
   }, [mapRef, locationPoints.length]);
 
-  // Custom marker creation
-  const createMarkerIcon = useCallback((isSelected: boolean, isLatest: boolean) => {
-    let className = 'event-marker-default';
-    
-    if (isSelected) {
-      className += ' event-marker-selected';
+  // Get color for marker based on location type
+  const getMarkerColor = (locationType: string | undefined): { bg: string, border: string } => {
+    switch (locationType) {
+      case 'gps':
+        return { bg: 'rgba(34, 197, 94, 0.8)', border: '#16a34a' }; // Green
+      case 'wifi':
+        return { bg: 'rgba(59, 130, 246, 0.8)', border: '#2563eb' }; // Blue
+      case 'cellId':
+        return { bg: 'rgba(168, 85, 247, 0.8)', border: '#9333ea' }; // Purple
+      case 'lb-only':
+        return { bg: 'rgba(249, 115, 22, 0.8)', border: '#ea580c' }; // Orange
+      default:
+        return { bg: 'rgba(107, 114, 128, 0.8)', border: '#4b5563' }; // Gray
     }
+  };
+
+  // Custom marker creation with color based on location type
+  const createMarkerIcon = useCallback((point: LocationPoint, isSelected: boolean, isEarliest: boolean, isLatest: boolean) => {
+    // Get color based on location type
+    const colors = getMarkerColor(point.locationType);
     
+    // Special markers override the normal colors
+    let backgroundColor = colors.bg;
+    let borderColor = colors.border;
+    let size = 12;
+    let pulseEffect = false;
+    
+    // Override for earliest, latest, and selected points
     if (isLatest) {
-      className += ' event-marker-pulse';
+      backgroundColor = 'rgba(250, 204, 21, 0.8)'; // Yellow
+      borderColor = '#eab308';
+      size = 16;
+      pulseEffect = true;
+    } else if (isEarliest) {
+      backgroundColor = 'rgba(239, 68, 68, 0.8)'; // Red
+      borderColor = '#dc2626';
+      size = 16;
+    } else if (isSelected) {
+      backgroundColor = colors.bg;
+      borderColor = '#1d4ed8'; // Deep blue
+      size = 16;
+      // Add shadow effect for selected
     }
+    
+    // Create custom CSS for the marker
+    const style = `
+      background-color: ${backgroundColor};
+      border: 2px solid ${borderColor};
+      width: ${size}px;
+      height: ${size}px;
+      border-radius: 50%;
+      cursor: pointer;
+      ${pulseEffect ? 'animation: marker-pulse 1.5s infinite;' : ''}
+      ${isSelected ? 'box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.4);' : ''}
+    `;
     
     return L.divIcon({
-      className: className,
-      iconSize: [12, 12]
+      html: `<div style="${style}"></div>`,
+      className: '',
+      iconSize: [size, size]
     });
   }, []);
 
@@ -276,6 +454,22 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
     
     // Return as is if parsing failed
     return String(value);
+  };
+
+  // Get human-readable location type
+  const getLocationTypeLabel = (locationType: string | undefined): string => {
+    switch (locationType) {
+      case 'gps':
+        return 'GPS';
+      case 'wifi':
+        return 'WiFi';
+      case 'cellId':
+        return 'Cell ID';
+      case 'lb-only':
+        return 'LB-Only';
+      default:
+        return 'Unknown';
+    }
   };
 
   if (locationPoints.length === 0) {
@@ -326,13 +520,14 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
         {/* Render markers for each location point */}
         {locationPoints.map((point, index) => {
           const isLatest = index === locationPoints.length - 1;
+          const isEarliest = index === 0;
           const isSelected = point.eventId === selectedPoint;
           
           return (
             <Marker 
               key={`${point.eventId}-${index}`}
               position={[point.lat, point.lng]}
-              icon={createMarkerIcon(isSelected, isLatest)}
+              icon={createMarkerIcon(point, isSelected, isEarliest, isLatest)}
               eventHandlers={{
                 click: () => handleMarkerClick(point.eventId)
               }}
@@ -351,7 +546,18 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
                         className="mr-1"
                       />
                     )}
+                    <Tag 
+                      value={getLocationTypeLabel(point.locationType)} 
+                      severity={
+                        point.locationType === 'gps' ? 'success' :
+                        point.locationType === 'wifi' ? 'info' :
+                        point.locationType === 'cellId' ? 'warning' :
+                        point.locationType === 'lb-only' ? 'danger' : 'secondary'
+                      }
+                      className="mr-1"
+                    />
                     {isLatest && <Tag value="Latest" severity="warning" />}
+                    {isEarliest && <Tag value="Earliest" severity="danger" />}
                   </div>
                   
                   <div className="text-xs grid grid-cols-2 gap-x-2 gap-y-1 mb-2">
@@ -416,6 +622,9 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
             </Marker>
           );
         })}
+        
+        {/* Map Legend */}
+        {showLegend && <MapLegend />}
       </MapContainer>
       
       {/* Map controls */}
@@ -448,6 +657,13 @@ export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 5
           className="text-center flex items-center justify-center"
         >
           <Layers className="h-4 w-4" />
+        </button>
+        <button 
+          title="Toggle Legend" 
+          onClick={() => setShowLegend(!showLegend)}
+          className={`text-center flex items-center justify-center ${showLegend ? 'bg-blue-100 border-blue-300' : ''}`}
+        >
+          <Info className="h-4 w-4" />
         </button>
       </div>
     </div>

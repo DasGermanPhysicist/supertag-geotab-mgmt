@@ -26,6 +26,9 @@ interface EventDataTableProps {
   nestedPropertyTemplate: (rowData: any, field: { field: string }) => React.ReactNode;
   dtRef: React.RefObject<DataTable<TagEvent[]>>;
   msgTypeOptions: Array<{ label: string; value: string }>;
+  actionTemplate?: (rowData: any) => React.ReactNode;
+  selectedEventId?: string | null;
+  onEventSelect?: (eventId: string) => void;
 }
 
 export function EventDataTable({
@@ -43,7 +46,10 @@ export function EventDataTable({
   handleDragOver,
   nestedPropertyTemplate,
   dtRef,
-  msgTypeOptions
+  msgTypeOptions,
+  actionTemplate,
+  selectedEventId,
+  onEventSelect
 }: EventDataTableProps) {
   
   // Text filter element template
@@ -73,6 +79,13 @@ export function EventDataTable({
     );
   };
   
+  // Handle row selection (for map sync)
+  const handleRowSelection = (e: any) => {
+    if (onEventSelect && e.data && e.data.uuid) {
+      onEventSelect(e.data.uuid);
+    }
+  };
+  
   return (
     <div className="card">
       <DataTable
@@ -93,7 +106,22 @@ export function EventDataTable({
         scrollHeight="400px"
         stripedRows
         className="p-datatable-sm"
+        onRowClick={handleRowSelection}
+        selectionMode="single"
+        selection={events.find(e => e.uuid === selectedEventId)}
+        dataKey="uuid"
+        rowClassName={(data) => data.uuid === selectedEventId ? 'bg-blue-50' : ''}
       >
+        {/* Action column for row-to-map sync if provided */}
+        {actionTemplate && (
+          <Column
+            body={actionTemplate}
+            header="Actions"
+            style={{ width: '130px' }}
+            exportable={false}
+          />
+        )}
+        
         {/* Always include time and msgType columns first */}
         <Column
           field="time"
