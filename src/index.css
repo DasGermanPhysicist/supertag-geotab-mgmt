@@ -91,6 +91,11 @@
     @apply bg-gray-50 text-gray-700 font-semibold;
   }
 
+  .p-datatable .p-datatable-thead > tr > th .p-column-title {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+  }
+
   .p-datatable .p-datatable-tbody > tr {
     @apply bg-white hover:bg-gray-50;
   }

@@ -31,6 +31,46 @@ interface EventDataTableProps {
   onEventSelect?: (eventId: string) => void;
 }
 
+// Helper function to format column names for display
+const formatColumnName = (column: string): string => {
+  // Remove any prefix paths (like metadata.props. or value.)
+  let displayName = column;
+  
+  if (column.startsWith('metadata.props.')) {
+    displayName = column.replace('metadata.props.', '');
+  } else if (column.startsWith('value.')) {
+    displayName = column.replace('value.', '');
+  } else if (column.startsWith('metadata.')) {
+    displayName = column.replace('metadata.', '');
+  } else if (column.startsWith('address_')) {
+    displayName = column.replace('address_', '');
+  }
+  
+  // Convert camelCase to spaced words with capital first letters
+  displayName = displayName
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+  
+  // Handle special cases and common abbreviations
+  displayName = displayName
+    .replace(/\bId\b/g, 'ID')
+    .replace(/\bUuid\b/g, 'UUID')
+    .replace(/\bMac\b/g, 'MAC')
+    .replace(/\bLat\b/g, 'Latitude')
+    .replace(/\bLon\b/g, 'Longitude')
+    .replace(/\bLng\b/g, 'Longitude')
+    .replace(/\bAlt\b/g, 'Altitude')
+    .replace(/\bTemp\b/g, 'Temperature')
+    .replace(/\bMsg\b/g, 'Message')
+    .replace(/\bAddr\b/g, 'Address')
+    .replace(/\bProps\b/g, 'Properties');
+  
+  // Clean up any double spaces
+  displayName = displayName.replace(/\s+/g, ' ').trim();
+  
+  return displayName;
+};
+
 export function EventDataTable({
   events,
   loading,
@@ -190,13 +230,13 @@ export function EventDataTable({
                      onDragOver={(e) => handleDragOver(e, col)}
                 >
                   <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
-                  <span>{col.split('.').pop()}</span>
+                  <span>{formatColumnName(col)}</span>
                 </div>
               }
               sortable
               body={(rowData, options) => nestedPropertyTemplate(rowData, options)}
               filter
-              filterPlaceholder={`Search ${col.split('.').pop()}`}
+              filterPlaceholder={`Search ${formatColumnName(col)}`}
               filterElement={(options) => textFilterTemplate({...options, field: col})}
               showFilterMenu={false}
             />

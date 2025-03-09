@@ -10,6 +10,43 @@ interface ColumnFilterModalProps {
   clearColumnFilters: () => void;
 }
 
+// Helper function to format column names for display
+const formatColumnName = (column: string): string => {
+  // Remove any prefix paths (like metadata.props. or value.)
+  let displayName = column;
+  
+  if (column.startsWith('metadata.props.')) {
+    displayName = column.replace('metadata.props.', '');
+  } else if (column.startsWith('value.')) {
+    displayName = column.replace('value.', '');
+  } else if (column.startsWith('address_')) {
+    displayName = column.replace('address_', '');
+  }
+  
+  // Convert camelCase to spaced words with capital first letters
+  displayName = displayName
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+  
+  // Handle special cases and common abbreviations
+  displayName = displayName
+    .replace(/\bId\b/g, 'ID')
+    .replace(/\bUuid\b/g, 'UUID')
+    .replace(/\bMac\b/g, 'MAC')
+    .replace(/\bLat\b/g, 'Latitude')
+    .replace(/\bLon\b/g, 'Longitude')
+    .replace(/\bLng\b/g, 'Longitude')
+    .replace(/\bAlt\b/g, 'Altitude')
+    .replace(/\bTemp\b/g, 'Temperature')
+    .replace(/\bMsg\b/g, 'Message')
+    .replace(/\bAddr\b/g, 'Address');
+  
+  // Clean up any double spaces
+  displayName = displayName.replace(/\s+/g, ' ').trim();
+  
+  return displayName;
+};
+
 export function ColumnFilterModal({
   isOpen,
   onClose,
@@ -105,16 +142,16 @@ export function ColumnFilterModal({
                     key={filter.column} 
                     className="flex items-center justify-between bg-blue-50 p-2 rounded-md border border-blue-100"
                   >
-                    <div>
+                    <div className="break-words pr-2">
                       <span className="text-xs font-medium text-gray-500">Column:</span>
-                      <span className="ml-1 text-sm font-medium text-gray-900">{filter.column}</span>
+                      <span className="ml-1 text-sm font-medium text-gray-900">{formatColumnName(filter.column)}</span>
                       <span className="mx-2 text-gray-400">•</span>
                       <span className="text-xs font-medium text-gray-500">Value:</span>
                       <span className="ml-1 text-sm text-gray-900">"{filter.value}"</span>
                     </div>
                     <button 
                       onClick={() => removeFilter(filter.column)} 
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-gray-400 hover:text-red-500 flex-shrink-0"
                       title="Remove filter"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -160,7 +197,9 @@ export function ColumnFilterModal({
                       }`}
                       onClick={() => setTempColumn(column)}
                     >
-                      {column}
+                      <div className="break-words">
+                        {formatColumnName(column)}
+                      </div>
                     </button>
                   ))
                 ) : (

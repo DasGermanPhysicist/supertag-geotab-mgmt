@@ -39,6 +39,43 @@ interface PrimeDataTableProps {
   onSetHydrophobic: (nodeAddress: string, value: boolean) => Promise<{ success: boolean; error?: Error }>;
 }
 
+// Helper function to format column names for display
+const formatColumnName = (column: string): string => {
+  // Remove any prefix paths (like metadata.props. or value.)
+  let displayName = column;
+  
+  if (column.startsWith('metadata.props.')) {
+    displayName = column.replace('metadata.props.', '');
+  } else if (column.startsWith('value.')) {
+    displayName = column.replace('value.', '');
+  } else if (column.startsWith('address_')) {
+    displayName = column.replace('address_', '');
+  }
+  
+  // Convert camelCase to spaced words with capital first letters
+  displayName = displayName
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+  
+  // Handle special cases and common abbreviations
+  displayName = displayName
+    .replace(/\bId\b/g, 'ID')
+    .replace(/\bUuid\b/g, 'UUID')
+    .replace(/\bMac\b/g, 'MAC')
+    .replace(/\bLat\b/g, 'Latitude')
+    .replace(/\bLon\b/g, 'Longitude')
+    .replace(/\bLng\b/g, 'Longitude')
+    .replace(/\bAlt\b/g, 'Altitude')
+    .replace(/\bTemp\b/g, 'Temperature')
+    .replace(/\bMsg\b/g, 'Message')
+    .replace(/\bAddr\b/g, 'Address');
+  
+  // Clean up any double spaces
+  displayName = displayName.replace(/\s+/g, ' ').trim();
+  
+  return displayName;
+};
+
 export function PrimeDataTable({
   data,
   auth,
@@ -316,7 +353,7 @@ export function PrimeDataTable({
                       onDragOver={(e) => actions.handleDragOver(e, column)}
                     >
                       <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
-                      <span>{column}</span>
+                      <span>{formatColumnName(column)}</span>
                     </div>
                   )}
                   sortable
@@ -353,7 +390,7 @@ export function PrimeDataTable({
                       onDragOver={(e) => actions.handleDragOver(e, column)}
                     >
                       <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
-                      <span>{column}</span>
+                      <span>{formatColumnName(column)}</span>
                     </div>
                   )}
                   sortable
@@ -390,7 +427,7 @@ export function PrimeDataTable({
                       onDragOver={(e) => actions.handleDragOver(e, column)}
                     >
                       <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
-                      <span>{column}</span>
+                      <span>{formatColumnName(column)}</span>
                     </div>
                   )}
                   sortable
@@ -427,17 +464,17 @@ export function PrimeDataTable({
                     onDragOver={(e) => actions.handleDragOver(e, column)}
                   >
                     <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
-                    <span>{column}</span>
+                    <span>{formatColumnName(column)}</span>
                   </div>
                 )}
                 sortable
                 filter
-                filterPlaceholder={`Search ${column}`}
+                filterPlaceholder={`Search ${formatColumnName(column)}`}
                 filterElement={(options) => (
                   <InputText
                     value={options.value || ''}
                     onChange={(e) => safeFilterCallback(options.field, e.target.value, options.index)}
-                    placeholder={`Search ${column}`}
+                    placeholder={`Search ${formatColumnName(column)}`}
                     className="p-column-filter w-full"
                   />
                 )}

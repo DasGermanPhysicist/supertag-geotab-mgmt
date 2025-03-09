@@ -18,6 +18,43 @@ interface TableColumnsProps {
   scrollToTable: () => void;
 }
 
+// Helper function to format column names for display
+const formatColumnName = (column: string): string => {
+  // Remove any prefix paths (like metadata.props. or value.)
+  let displayName = column;
+  
+  if (column.startsWith('metadata.props.')) {
+    displayName = column.replace('metadata.props.', '');
+  } else if (column.startsWith('value.')) {
+    displayName = column.replace('value.', '');
+  } else if (column.startsWith('address_')) {
+    displayName = column.replace('address_', '');
+  }
+  
+  // Convert camelCase to spaced words with capital first letters
+  displayName = displayName
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+  
+  // Handle special cases and common abbreviations
+  displayName = displayName
+    .replace(/\bId\b/g, 'ID')
+    .replace(/\bUuid\b/g, 'UUID')
+    .replace(/\bMac\b/g, 'MAC')
+    .replace(/\bLat\b/g, 'Latitude')
+    .replace(/\bLon\b/g, 'Longitude')
+    .replace(/\bLng\b/g, 'Longitude')
+    .replace(/\bAlt\b/g, 'Altitude')
+    .replace(/\bTemp\b/g, 'Temperature')
+    .replace(/\bMsg\b/g, 'Message')
+    .replace(/\bAddr\b/g, 'Address');
+  
+  // Clean up any double spaces
+  displayName = displayName.replace(/\s+/g, ' ').trim();
+  
+  return displayName;
+};
+
 export function TableColumns({
   showColumnSelector,
   filteredColumns,
@@ -119,7 +156,7 @@ export function TableColumns({
                 <MapPin className="h-4 w-4 mr-2 text-green-600" />
                 Address Information
               </h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
                 {groupedColumns.address.map(column => (
                   <div
                     key={column}
@@ -132,8 +169,8 @@ export function TableColumns({
                         : 'bg-green-50 border border-green-100 cursor-move hover:bg-green-100'
                     }`}
                   >
-                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
-                    <label className="flex items-center space-x-2 flex-1 truncate">
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                    <label className="flex items-center space-x-2 w-full min-w-0">
                       <input
                         type="checkbox"
                         checked={columnVisibility[column]}
@@ -142,10 +179,10 @@ export function TableColumns({
                           ...columnVisibility,
                           [column]: !columnVisibility[column]
                         })}
-                        className="rounded text-blue-600 focus:ring-blue-500"
+                        className="rounded text-blue-600 focus:ring-blue-500 flex-shrink-0"
                       />
-                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
-                        {column === 'formattedAddress' ? 'Full Address' : column.replace('address_', '')}
+                      <span className={`break-words ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
+                        {column === 'formattedAddress' ? 'Full Address' : formatColumnName(column)}
                       </span>
                     </label>
                   </div>
@@ -158,7 +195,7 @@ export function TableColumns({
           {groupedColumns.location.length > 0 && (
             <div>
               <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Geographic Coordinates</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
                 {groupedColumns.location.map(column => (
                   <div
                     key={column}
@@ -171,8 +208,8 @@ export function TableColumns({
                         : 'bg-green-50 border border-green-100 cursor-move hover:bg-green-100'
                     }`}
                   >
-                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
-                    <label className="flex items-center space-x-2 flex-1 truncate">
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                    <label className="flex items-center space-x-2 w-full min-w-0">
                       <input
                         type="checkbox"
                         checked={columnVisibility[column]}
@@ -181,10 +218,10 @@ export function TableColumns({
                           ...columnVisibility,
                           [column]: !columnVisibility[column]
                         })}
-                        className="rounded text-blue-600 focus:ring-blue-500"
+                        className="rounded text-blue-600 focus:ring-blue-500 flex-shrink-0"
                       />
-                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
-                        {column}
+                      <span className={`break-words ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
+                        {formatColumnName(column)}
                       </span>
                     </label>
                   </div>
@@ -197,7 +234,7 @@ export function TableColumns({
           {groupedColumns.other.length > 0 && (
             <div>
               <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Tag Properties</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
                 {groupedColumns.other.map(column => (
                   <div
                     key={column}
@@ -210,8 +247,8 @@ export function TableColumns({
                         : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
                     }`}
                   >
-                    <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
-                    <label className="flex items-center space-x-2 flex-1 truncate">
+                    <GripVertical className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                    <label className="flex items-center space-x-2 w-full min-w-0">
                       <input
                         type="checkbox"
                         checked={columnVisibility[column]}
@@ -220,10 +257,10 @@ export function TableColumns({
                           ...columnVisibility,
                           [column]: !columnVisibility[column]
                         })}
-                        className="rounded text-blue-600 focus:ring-blue-500"
+                        className="rounded text-blue-600 focus:ring-blue-500 flex-shrink-0"
                       />
-                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
-                        {column}
+                      <span className={`break-words ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                        {formatColumnName(column)}
                       </span>
                     </label>
                   </div>
