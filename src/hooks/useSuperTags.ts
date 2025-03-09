@@ -49,7 +49,7 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
                 ...Object.keys(addressData.address || {}).reduce((obj, key) => {
                   obj[`address_${key}`] = addressData.address[key];
                   return obj;
-                }, {})
+                }, {} as Record<string, string>)
               };
             }
           } catch (err) {

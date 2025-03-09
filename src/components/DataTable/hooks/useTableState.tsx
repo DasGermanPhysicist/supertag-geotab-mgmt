@@ -53,6 +53,9 @@ export function useTableState({
   const [sortConfig, setSortConfig] = usePersistedState<{ key: string; direction: 'asc' | 'desc' } | null>('sortConfig', null);
   const [filterText, setFilterText] = useState('');
   const [showSuperTagsOnly, setShowSuperTagsOnly] = usePersistedState<boolean>('showSuperTagsOnly', false);
+  
+  // Column-specific filters
+  const [columnFilters, setColumnFilters] = usePersistedState<Record<string, string>>('columnFilters', {});
 
   // UI state
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
@@ -116,10 +119,34 @@ export function useTableState({
     );
   }, [columnOrder, columnSearchTerm]);
 
+  // Handle column filter update
+  const updateColumnFilter = (column: string, value: string) => {
+    setColumnFilters(prev => {
+      if (value === '') {
+        // Remove the filter if value is empty
+        const newFilters = { ...prev };
+        delete newFilters[column];
+        return newFilters;
+      }
+      return { ...prev, [column]: value };
+    });
+  };
+
+  // Clear all column filters
+  const clearColumnFilters = () => {
+    setColumnFilters({});
+  };
+
+  // Check if any column filters are active
+  const hasActiveColumnFilters = useMemo(() => {
+    return Object.keys(columnFilters).length > 0;
+  }, [columnFilters]);
+
   // Filtered and sorted data
   const sortedAndFilteredData = useMemo(() => {
     let processedData = [...data];
 
+    // Apply SuperTag filter if enabled
     if (showSuperTagsOnly) {
       processedData = processedData.filter(item => {
         // Check both direct property and nested property for the registration token
@@ -133,12 +160,25 @@ export function useTableState({
       });
     }
 
+    // Apply global filter if set
     if (filterText) {
       processedData = processedData.filter(item =>
         Object.entries(item).some(([key, value]) =>
           String(value).toLowerCase().includes(filterText.toLowerCase())
         )
       );
+    }
+
+    // Apply column-specific filters
+    if (hasActiveColumnFilters) {
+      processedData = processedData.filter(item => {
+        // Item passes if it meets all column filter criteria
+        return Object.entries(columnFilters).every(([column, filterValue]) => {
+          const value = item[column];
+          if (value === undefined || value === null) return false;
+          return String(value).toLowerCase().includes(filterValue.toLowerCase());
+        });
+      });
     }
 
     // Always prioritize devices with Geotab pairing
@@ -177,7 +217,7 @@ export function useTableState({
     }
 
     return processedData;
-  }, [data, filterText, sortConfig, showSuperTagsOnly, SUPERTAG_REGISTRATION_TOKEN]);
+  }, [data, filterText, sortConfig, showSuperTagsOnly, SUPERTAG_REGISTRATION_TOKEN, columnFilters]);
 
   // Format cells based on type
   const formatCellValue = (value: any, column: string) => {
@@ -492,6 +532,9 @@ export function useTableState({
       PREFERRED_COLUMNS,
       ADDRESS_COLUMNS,
       columnSearchTerm,
+      // Column filters state
+      columnFilters,
+      hasActiveColumnFilters
     },
     actions: {
       setColumnVisibility,
@@ -521,6 +564,9 @@ export function useTableState({
       handleRefreshData,
       downloadCSV,
       formatCellValue,
+      // Column filters actions
+      updateColumnFilter,
+      clearColumnFilters
     },
     modals: {
       showColumnSelector,

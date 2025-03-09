@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Plus, Trash2, Droplets, Search, X, Filter } from 'lucide-react';
+import { Check, Plus, Trash2, Droplets, Search, X, Filter, MapPin } from 'lucide-react';
 import { SuperTag, ColumnVisibility } from '../../types';
 
 interface TableRowsProps {
@@ -110,6 +110,16 @@ export function TableRows({
                   <div>
                     <p className="text-xs text-gray-500">Area</p>
                     <div>{formatCellValue(row.areaName, 'areaName')}</div>
+                  </div>
+                )}
+                
+                {row.formattedAddress && (
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500">Address</p>
+                    <div className="flex items-start">
+                      <MapPin className="h-4 w-4 mr-1 text-gray-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-gray-900 text-sm">{row.formattedAddress}</p>
+                    </div>
                   </div>
                 )}
                 

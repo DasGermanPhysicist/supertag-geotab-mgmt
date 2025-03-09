@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, GripVertical } from 'lucide-react';
+import { Search, GripVertical, X, MapPin } from 'lucide-react';
 import { ColumnVisibility } from '../../types';
 
 interface TableColumnsProps {
@@ -48,6 +48,19 @@ export function TableColumns({
     )
   };
 
+  // Helper function to toggle all address-related columns
+  const toggleAddressColumns = () => {
+    const addressColumns = [...groupedColumns.address, ...groupedColumns.location];
+    const allSelected = addressColumns.every(col => columnVisibility[col]);
+    
+    const newVisibility = { ...columnVisibility };
+    addressColumns.forEach(col => {
+      newVisibility[col] = !allSelected;
+    });
+    
+    setColumnVisibility(newVisibility);
+  };
+
   return (
     <div className="bg-white border rounded-lg shadow-lg p-4">
       <div className="space-y-4">
@@ -66,6 +79,14 @@ export function TableColumns({
             >
               Deselect All
             </button>
+            {(groupedColumns.address.length > 0 || groupedColumns.location.length > 0) && (
+              <button
+                onClick={toggleAddressColumns}
+                className="px-3 py-1 text-sm bg-green-50 text-green-600 rounded hover:bg-green-100 transition-colors duration-150"
+              >
+                Toggle Address
+              </button>
+            )}
           </div>
         </div>
         
@@ -80,13 +101,24 @@ export function TableColumns({
             onChange={(e) => setColumnSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
+          {columnSearchTerm && (
+            <button
+              onClick={() => setColumnSearchTerm('')}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="mt-4 space-y-6">
           {/* Address columns section */}
           {groupedColumns.address.length > 0 && (
             <div>
-              <h4 className="font-medium text-gray-800 mb-2 border-b pb-1">Address Information</h4>
+              <h4 className="font-medium text-gray-800 mb-2 border-b pb-1 flex items-center">
+                <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                Address Information
+              </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto">
                 {groupedColumns.address.map(column => (
                   <div
@@ -97,7 +129,7 @@ export function TableColumns({
                     className={`flex items-center p-2 rounded transition-colors ${
                       MANDATORY_COLUMNS.includes(column)
                         ? 'bg-blue-50 border border-blue-100'
-                        : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
+                        : 'bg-green-50 border border-green-100 cursor-move hover:bg-green-100'
                     }`}
                   >
                     <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
@@ -112,7 +144,7 @@ export function TableColumns({
                         })}
                         className="rounded text-blue-600 focus:ring-blue-500"
                       />
-                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
                         {column === 'formattedAddress' ? 'Full Address' : column.replace('address_', '')}
                       </span>
                     </label>
@@ -136,7 +168,7 @@ export function TableColumns({
                     className={`flex items-center p-2 rounded transition-colors ${
                       MANDATORY_COLUMNS.includes(column)
                         ? 'bg-blue-50 border border-blue-100'
-                        : 'bg-gray-50 border border-gray-100 cursor-move hover:bg-gray-100'
+                        : 'bg-green-50 border border-green-100 cursor-move hover:bg-green-100'
                     }`}
                   >
                     <GripVertical className="h-4 w-4 text-gray-400 mr-2" />
@@ -151,7 +183,7 @@ export function TableColumns({
                         })}
                         className="rounded text-blue-600 focus:ring-blue-500"
                       />
-                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : ''}`}>
+                      <span className={`truncate ${MANDATORY_COLUMNS.includes(column) ? 'font-medium text-blue-700' : 'text-green-800'}`}>
                         {column}
                       </span>
                     </label>

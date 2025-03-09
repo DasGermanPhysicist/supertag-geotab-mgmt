@@ -2,6 +2,7 @@ import { Organization, Site, SuperTag } from '../types';
 
 const API_BASE_URL = 'https://networkasset-conductor.link-labs.com';
 const GEOCODE_API_URL = 'https://api.george.airfinder.com/reverse.php';
+const CLIENT_EDGE_API_URL = 'https://clientedge-conductor.link-labs.com';
 
 export const apiService = {
   fetchOrganizations: async (authHeader: string): Promise<Organization[]> => {
@@ -173,6 +174,43 @@ export const apiService = {
       return data;
     } catch (error) {
       console.error('Error fetching address:', error);
+      throw error;
+    }
+  },
+
+  // New method to fetch tag event history
+  fetchTagEventHistory: async (
+    nodeAddress: string,
+    endTime: string,
+    startTime: string,
+    authHeader: string,
+    pageId?: string
+  ): Promise<any> => {
+    try {
+      // Encode the node address
+      const encodedNodeAddress = encodeURIComponent(nodeAddress);
+      
+      // Build the URL
+      let url = `${CLIENT_EDGE_API_URL}/clientEdge/data/uplinkPayload/node/${encodedNodeAddress}/events/${endTime}/${startTime}`;
+      
+      // Add page id if provided
+      if (pageId) {
+        url += `?pageId=${pageId}`;
+      }
+      
+      const response = await fetch(url, {
+        headers: { 'Authorization': authHeader }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch tag event history: ${errorText || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching tag event history:', error);
       throw error;
     }
   }

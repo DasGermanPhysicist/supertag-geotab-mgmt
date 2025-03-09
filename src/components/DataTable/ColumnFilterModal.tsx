@@ -31,7 +31,7 @@ export function ColumnFilterModal({
     setActiveFilters(Object.entries(columnFilters).map(([column, value]) => ({ column, value })));
   }, [columnFilters]);
 
-  // Close modal when clicking outside
+  // Handle click outside to close modal
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (modalRef.current && !modalRef.current.contains(event.target as Node)) {

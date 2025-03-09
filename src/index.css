@@ -171,6 +171,36 @@
     @apply shadow-lg border-gray-200;
   }
 
+  /* Calendar date range panel customizations */
+  .date-range-panel .p-datepicker {
+    @apply shadow-xl;
+    min-width: 650px !important;
+  }
+
+  .date-range-panel .p-datepicker .p-datepicker-header {
+    @apply bg-blue-50 border-blue-100;
+  }
+
+  .date-range-panel .p-datepicker-buttonbar {
+    @apply border-t border-gray-200 pt-2;
+  }
+
+  .date-range-input {
+    @apply font-medium;
+  }
+
+  .p-datepicker table td.p-datepicker-today > span {
+    @apply bg-blue-50 border-blue-200 text-blue-700;
+  }
+
+  .p-datepicker table td > span.p-highlight {
+    @apply bg-blue-500 text-white;
+  }
+
+  .p-datepicker table td.p-datepicker-today > span.p-highlight {
+    @apply bg-blue-600 text-white border-blue-700;
+  }
+
   /* Keyboard shortcut styles */
   .p-keyboard-key {
     @apply px-2 py-1 text-xs bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono shadow-sm;

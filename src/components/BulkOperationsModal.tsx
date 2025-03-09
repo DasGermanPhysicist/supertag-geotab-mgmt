@@ -163,6 +163,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode }:
     reader.readAsText(file);
   };
 
+  // If modal is not open, don't render anything
   if (!isOpen) return null;
 
   const successCount = results.filter(r => r.success).length;

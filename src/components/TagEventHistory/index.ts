@@ -1,0 +1,1 @@
+export { TagEventHistoryPage } from './TagEventHistoryPage';

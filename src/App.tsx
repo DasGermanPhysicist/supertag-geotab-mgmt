@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginForm } from './components/LoginForm';
 import { ErrorBanner } from './components/ErrorBanner';
 import { AuthenticatedApp } from './components/AuthenticatedApp';
+import { TagEventHistoryPage } from './components/TagEventHistory';
 import { useAuth } from './hooks/useAuth';
 import { LoadingSpinner } from './components/LoadingSpinner';
+
+// PrimeReact
+import { PrimeReactProvider } from 'primereact/api';
 
 function App() {
   const { auth, login, logout } = useAuth();
@@ -49,20 +54,34 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {!auth.isAuthenticated ? (
-        <div className="min-h-screen">
-          {error && (
-            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
-              <ErrorBanner message={error} />
+    <PrimeReactProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
+          {!auth.isAuthenticated ? (
+            <div className="min-h-screen">
+              {error && (
+                <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4">
+                  <ErrorBanner message={error} />
+                </div>
+              )}
+              <LoginForm onLogin={handleLogin} />
             </div>
+          ) : (
+            <Routes>
+              <Route 
+                path="/" 
+                element={<AuthenticatedApp auth={auth} onLogout={handleLogout} />} 
+              />
+              <Route 
+                path="/event-history/:nodeAddress" 
+                element={<TagEventHistoryPage />} 
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           )}
-          <LoginForm onLogin={handleLogin} />
         </div>
-      ) : (
-        <AuthenticatedApp auth={auth} onLogout={handleLogout} />
-      )}
-    </div>
+      </Router>
+    </PrimeReactProvider>
   );
 }
 
