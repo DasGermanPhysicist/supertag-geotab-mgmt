@@ -2,6 +2,16 @@ import { useState, useEffect } from 'react';
 import { SuperTag, Site } from '../types';
 import { apiService } from '../services/api';
 
+// Cache implementation
+interface CacheEntry {
+  data: SuperTag[];
+  timestamp: number;
+}
+
+// In-memory cache object - maps siteId to cache entries
+const tagsCache: Record<string, CacheEntry> = {};
+const CACHE_TTL = 60000; // 1 minute in milliseconds
+
 export function useSuperTags(authToken?: string, selectedSite: Site | null = null, sites: Site[] = []) {
   const [data, setData] = useState<SuperTag[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,66 +81,81 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
   };
 
   const fetchTags = async () => {
-    if (!authToken) return;
+    if (!authToken || !selectedSite) return;
     
     setLoading(true);
     setError(null);
     
-    if (selectedSite) {
-      try {
-        // Fetch data from both endpoints
-        const tagsData = await apiService.fetchTags(selectedSite.id, authToken);
-        const tagsWithAreaData = await apiService.fetchTagsWithAreaGrouping(selectedSite.id, authToken);
-        
-        // Process area-grouped tags to flatten the structure for merging
-        const flattenedAreaTags: SuperTag[] = [];
-        tagsWithAreaData.forEach(areaData => {
-          if (areaData.tags && Array.isArray(areaData.tags)) {
-            areaData.tags.forEach(tag => {
-              // Extract the tag data from inside the area structure
-              if (tag && tag.assetInfo && tag.assetInfo.metadata && tag.assetInfo.metadata.props) {
-                // Add area ID and name directly to tag properties for easier access
-                const tagWithArea = {
-                  ...tag,
-                  // Ensure area properties are included in the tag itself
-                  areaId: areaData.areaId,
-                  areaName: areaData.areaName,
-                  ...tag.assetInfo.metadata.props
-                };
-                flattenedAreaTags.push(tagWithArea);
-              }
-            });
-          }
-        });
-        
-        // Merge the data, preserving all properties and prioritizing new fields from the area grouping endpoint
-        const mergedData = tagsData.map(tag => {
-          const matchingAreaTag = flattenedAreaTags.find(areaTag => 
-            areaTag.macAddress === tag.macAddress || 
-            (areaTag.nodeAddress && tag.nodeAddress && areaTag.nodeAddress === tag.nodeAddress)
-          );
-          
-          if (matchingAreaTag) {
-            // Create a new object with both sets of properties, prioritizing area data
-            return { ...tag, ...matchingAreaTag };
-          }
-          return tag;
-        });
-        
-        // Enrich the data with address information
-        const enrichedData = await enrichTagsWithAddress(mergedData);
-        setData(enrichedData);
-      } catch (err) {
-        console.error('Fetch tags error:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch tags');
-      } finally {
-        setLoading(false);
-        setLoadingProgress(null);
-      }
-    } else if (sites.length > 0) {
-      await fetchAllSiteTags();
-    } else {
+    // Check if we have a valid cache entry
+    const cacheKey = selectedSite.id;
+    const cachedEntry = tagsCache[cacheKey];
+    const now = Date.now();
+    
+    if (cachedEntry && (now - cachedEntry.timestamp < CACHE_TTL)) {
+      console.log(`Using cached data for site ${selectedSite.id} (${(now - cachedEntry.timestamp) / 1000}s old)`);
+      setData(cachedEntry.data);
       setLoading(false);
+      return;
+    }
+    
+    try {
+      console.log(`Fetching fresh data for site ${selectedSite.id}`);
+      
+      // Fetch data from both endpoints
+      const tagsData = await apiService.fetchTags(selectedSite.id, authToken);
+      const tagsWithAreaData = await apiService.fetchTagsWithAreaGrouping(selectedSite.id, authToken);
+      
+      // Process area-grouped tags to flatten the structure for merging
+      const flattenedAreaTags: SuperTag[] = [];
+      tagsWithAreaData.forEach(areaData => {
+        if (areaData.tags && Array.isArray(areaData.tags)) {
+          areaData.tags.forEach(tag => {
+            // Extract the tag data from inside the area structure
+            if (tag && tag.assetInfo && tag.assetInfo.metadata && tag.assetInfo.metadata.props) {
+              // Add area ID and name directly to tag properties for easier access
+              const tagWithArea = {
+                ...tag,
+                // Ensure area properties are included in the tag itself
+                areaId: areaData.areaId,
+                areaName: areaData.areaName,
+                ...tag.assetInfo.metadata.props
+              };
+              flattenedAreaTags.push(tagWithArea);
+            }
+          });
+        }
+      });
+      
+      // Merge the data, preserving all properties and prioritizing new fields from the area grouping endpoint
+      const mergedData = tagsData.map(tag => {
+        const matchingAreaTag = flattenedAreaTags.find(areaTag => 
+          areaTag.macAddress === tag.macAddress || 
+          (areaTag.nodeAddress && tag.nodeAddress && areaTag.nodeAddress === tag.nodeAddress)
+        );
+        
+        if (matchingAreaTag) {
+          // Create a new object with both sets of properties, prioritizing area data
+          return { ...tag, ...matchingAreaTag };
+        }
+        return tag;
+      });
+      
+      // Enrich the data with address information
+      const enrichedData = await enrichTagsWithAddress(mergedData);
+      
+      // Update the cache
+      tagsCache[cacheKey] = {
+        data: enrichedData,
+        timestamp: Date.now()
+      };
+      
+      setData(enrichedData);
+    } catch (err) {
+      console.error('Fetch tags error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch tags');
+    } finally {
+      setLoading(false);
+      setLoadingProgress(null);
     }
   };
 
@@ -142,6 +167,32 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
     setData([]);
     setLoadingProgress({ current: 0, total: sites.length });
 
+    // For fetching all sites, we'll check if we have all sites cached recently
+    const now = Date.now();
+    const cachedSiteIds = new Set(Object.keys(tagsCache));
+    const allSitesCached = sites.every(site => {
+      const cacheEntry = tagsCache[site.id];
+      return cacheEntry && (now - cacheEntry.timestamp < CACHE_TTL);
+    });
+    
+    if (allSitesCached) {
+      console.log(`Using cached data for all ${sites.length} sites`);
+      
+      // Combine all cached site data
+      const allCachedTags: SuperTag[] = [];
+      sites.forEach(site => {
+        const cachedEntry = tagsCache[site.id];
+        if (cachedEntry) {
+          allCachedTags.push(...cachedEntry.data);
+        }
+      });
+      
+      setData(allCachedTags);
+      setLoading(false);
+      setLoadingProgress(null);
+      return;
+    }
+
     try {
       const allTags: SuperTag[] = [];
       
@@ -149,7 +200,17 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         const site = sites[i];
         setLoadingProgress({ current: i + 1, total: sites.length });
         
+        // Check if this specific site is cached
+        const cacheEntry = tagsCache[site.id];
+        if (cacheEntry && (now - cacheEntry.timestamp < CACHE_TTL)) {
+          console.log(`Using cached data for site ${site.id} (${(now - cacheEntry.timestamp) / 1000}s old)`);
+          allTags.push(...cacheEntry.data);
+          continue;
+        }
+        
         try {
+          console.log(`Fetching fresh data for site ${site.id}`);
+          
           // Fetch data from both endpoints
           const siteTags = await apiService.fetchTags(site.id, authToken);
           const siteTagsWithArea = await apiService.fetchTagsWithAreaGrouping(site.id, authToken);
@@ -196,7 +257,16 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
             siteId: site.id
           }));
           
-          allTags.push(...tagsWithSite);
+          // Enrich with address info
+          const enrichedSiteTags = await enrichTagsWithAddress(tagsWithSite);
+          
+          // Update the cache for this site
+          tagsCache[site.id] = {
+            data: enrichedSiteTags,
+            timestamp: Date.now()
+          };
+          
+          allTags.push(...enrichedSiteTags);
         } catch (err) {
           console.error(`Error fetching tags for site ${site.value}:`, err);
         }
@@ -204,10 +274,7 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
 
       // Log the count of tags fetched
       console.log(`Fetched ${allTags.length} tags across ${sites.length} sites`);
-
-      // Enrich the data with address information
-      const enrichedTags = await enrichTagsWithAddress(allTags);
-      setData(enrichedTags);
+      setData(allTags);
     } catch (err) {
       console.error('Error in fetchAllSiteTags:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tags from all sites');
@@ -228,9 +295,15 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
   }, [selectedSite, sites.length, authToken]);
 
   const refreshData = () => {
+    // For refresh, we'll clear the cache entries for the relevant sites
     if (selectedSite) {
+      delete tagsCache[selectedSite.id];
       fetchTags();
     } else if (sites.length > 0) {
+      // Clear cache for all sites when doing a full refresh
+      sites.forEach(site => {
+        delete tagsCache[site.id];
+      });
       fetchAllSiteTags();
     }
   };
