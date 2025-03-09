@@ -121,6 +121,7 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         const enrichedData = await enrichTagsWithAddress(mergedData);
         setData(enrichedData);
       } catch (err) {
+        console.error('Fetch tags error:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch tags');
       } finally {
         setLoading(false);
@@ -201,10 +202,14 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         }
       }
 
+      // Log the count of tags fetched
+      console.log(`Fetched ${allTags.length} tags across ${sites.length} sites`);
+
       // Enrich the data with address information
       const enrichedTags = await enrichTagsWithAddress(allTags);
       setData(enrichedTags);
     } catch (err) {
+      console.error('Error in fetchAllSiteTags:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tags from all sites');
     } finally {
       setLoading(false);

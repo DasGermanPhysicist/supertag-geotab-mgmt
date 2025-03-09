@@ -109,26 +109,59 @@ export function TagEventHistoryPage() {
   // Get current date range values
   const { startTime, endTime } = getFormattedDates();
   
-  // Fetch available tags for mapping source SuperTag IDs to names
+  // Fetch ALL available tags for mapping source SuperTag IDs to names
+  // This is important - we want to load ALL tags from all sites to ensure complete mapping
   const { data: allTags } = useSuperTags(auth.token, null, []);
   
   // Create a map of nodeAddress to nodeName for quick lookups
   const tagMap = useMemo(() => {
     const map = new Map<string, string>();
     
-    // Log the tags we're trying to map
     console.log("Building tag map with", allTags.length, "tags");
     
+    // First, map nodeAddress to nodeName
     allTags.forEach(tag => {
       if (tag.nodeAddress && tag.nodeName) {
-        // Use nodeAddress as key and nodeName as value
         map.set(tag.nodeAddress, tag.nodeName);
       }
     });
     
-    // Log some sample mappings for debugging
+    // Also map macAddress to nodeName as fallback
+    allTags.forEach(tag => {
+      if (tag.macAddress && tag.nodeName) {
+        map.set(tag.macAddress, tag.nodeName);
+      }
+    });
+    
+    // Additionally map specific variations of the nodeAddress format that might appear in sourceSupertagId
+    allTags.forEach(tag => {
+      if (tag.nodeAddress && tag.nodeName) {
+        // Try different variations of the nodeAddress format
+        const cleanNodeAddress = tag.nodeAddress.replace(/\$/g, '').replace(/\-/g, '');
+        map.set(cleanNodeAddress, tag.nodeName);
+        
+        // Also try with just the last part (after the last dash)
+        const parts = tag.nodeAddress.split('-');
+        if (parts.length > 1) {
+          const lastPart = parts[parts.length - 1];
+          map.set(lastPart, tag.nodeName);
+        }
+      }
+    });
+    
     if (map.size > 0) {
       console.log(`Created tag map with ${map.size} entries`);
+      
+      // Log a few sample entries for debugging
+      let count = 0;
+      for (const [key, value] of map.entries()) {
+        if (count < 5) {
+          console.log(`Map entry: ${key} => ${value}`);
+          count++;
+        } else {
+          break;
+        }
+      }
     }
     
     return map;
@@ -156,16 +189,38 @@ export function TagEventHistoryPage() {
   const getSourceSupertagName = (sourceSupertagId: string | null | undefined) => {
     if (!sourceSupertagId) return '';
     
-    // Look up the actual SuperTag name
-    const name = tagMap.get(sourceSupertagId);
+    // Try direct lookup first
+    let name = tagMap.get(sourceSupertagId);
+    if (name) return name;
     
-    // Return the name if found, otherwise just return the ID
-    return name || sourceSupertagId;
+    // Try different variations of the ID format
+    const cleanId = sourceSupertagId.replace(/\$/g, '').replace(/\-/g, '');
+    name = tagMap.get(cleanId);
+    if (name) return name;
+    
+    // Try with just the last part (after the last dash)
+    const parts = sourceSupertagId.split('-');
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1];
+      name = tagMap.get(lastPart);
+      if (name) return name;
+    }
+    
+    // Try a more fuzzy approach - check if any key in the map contains this ID
+    for (const [key, val] of tagMap.entries()) {
+      if (sourceSupertagId.includes(key) || key.includes(sourceSupertagId)) {
+        console.log(`Fuzzy match found: ${sourceSupertagId} ~ ${key} => ${val}`);
+        return val;
+      }
+    }
+    
+    // If no match found, return the original ID
+    return sourceSupertagId;
   };
 
   // Enhance events with address data and source SuperTag names
   useEffect(() => {
-    if (events.length > 0) {
+    if (events.length > 0 && tagMap.size > 0) {
       // Process events to add address data and source SuperTag names
       const enhanceEvents = async () => {
         const enhancedEvents = [...events];
@@ -179,11 +234,14 @@ export function TagEventHistoryPage() {
           const sourceSupertagId = event.metadata?.props?.sourceSupertagId;
           if (sourceSupertagId && !event.sourceSupertagName) {
             const supertagName = getSourceSupertagName(sourceSupertagId);
-            enhancedEvents[i] = {
-              ...enhancedEvents[i],
-              sourceSupertagName: supertagName
-            };
-            eventUpdated = true;
+            if (supertagName) {
+              enhancedEvents[i] = {
+                ...enhancedEvents[i],
+                sourceSupertagName: supertagName
+              };
+              eventUpdated = true;
+              console.log(`Mapped ${sourceSupertagId} to ${supertagName}`);
+            }
           }
           
           // Skip address lookup if already has address data
@@ -246,6 +304,7 @@ export function TagEventHistoryPage() {
 
         // Only update if we actually modified events
         if (updated) {
+          console.log(`Enhanced ${enhancedEvents.length} events with SuperTag names and addresses`);
           setEvents(enhancedEvents);
         }
       };
@@ -428,13 +487,14 @@ export function TagEventHistoryPage() {
   const nestedPropertyTemplate = (rowData: any, field: { field: string }) => {
     // Special handling for our custom source SuperTag name column
     if (field.field === 'sourceSupertagName') {
-      const sourceSupertagId = rowData.metadata?.props?.sourceSupertagId;
-      if (!sourceSupertagId) return '';
-      
-      // Use the already calculated name if available, otherwise calculate it
+      // First check if we already have the sourceSupertagName property from our enhancement
       if (rowData.sourceSupertagName) {
         return rowData.sourceSupertagName;
       }
+      
+      // If not, get the sourceSupertagId and look it up
+      const sourceSupertagId = rowData.metadata?.props?.sourceSupertagId;
+      if (!sourceSupertagId) return '';
       
       return getSourceSupertagName(sourceSupertagId);
     }
@@ -833,16 +893,6 @@ export function TagEventHistoryPage() {
   // Handle event selection (for synchronizing between table and map)
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
-    
-    // If in table view and the event has location, find and highlight the row
-    if (currentView === 'table' && dt.current) {
-      // Find the event in the data
-      const event = events.find(e => e.uuid === eventId);
-      if (event) {
-        // Scroll to and select the row in the table
-        dt.current.scrollToSelection();
-      }
-    }
   };
 
   // Handle click outside column selector dropdown

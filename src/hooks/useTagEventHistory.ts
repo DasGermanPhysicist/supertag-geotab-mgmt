@@ -30,7 +30,10 @@ export function useTagEventHistory(
   
   // Fetch event history
   const fetchEventHistory = async (startTime: string, endTime: string, pageId?: string | null) => {
-    if (!nodeAddress || !authToken) return;
+    if (!nodeAddress || !authToken) {
+      setError("Missing required parameters (nodeAddress or authentication token)");
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -40,6 +43,8 @@ export function useTagEventHistory(
       if (!startTime || !endTime) {
         throw new Error("Start time and end time are required");
       }
+      
+      console.log(`Fetching event history for node ${nodeAddress} from ${startTime} to ${endTime}`);
       
       const data = await apiService.fetchTagEventHistory(
         nodeAddress,
@@ -77,7 +82,13 @@ export function useTagEventHistory(
       extractAllColumns(data.results);
       
     } catch (err) {
+      console.error("Error in fetchEventHistory:", err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tag event history');
+      
+      // Clear events if it's not a "load more" operation
+      if (!pageId) {
+        setEvents([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -251,19 +262,29 @@ export function useTagEventHistory(
   // Load more data when available
   const loadMore = async () => {
     if (nextPageId && eventHistory) {
-      const url = new URL(eventHistory.queryUrl.href);
-      const pathParts = url.pathname.split('/');
-      // Extract endTime and startTime from URL path
-      const endTime = pathParts[pathParts.length - 2];
-      const startTime = pathParts[pathParts.length - 1];
-      
-      await fetchEventHistory(startTime, endTime, nextPageId);
+      try {
+        const url = new URL(eventHistory.queryUrl.href);
+        const pathParts = url.pathname.split('/');
+        // Extract endTime and startTime from URL path
+        const endTime = pathParts[pathParts.length - 2];
+        const startTime = pathParts[pathParts.length - 1];
+        
+        await fetchEventHistory(startTime, endTime, nextPageId);
+      } catch (err) {
+        console.error("Error in loadMore:", err);
+        setError("Failed to load additional data. Please try again.");
+      }
     }
   };
   
   // Refresh with new date range
   const refresh = async (startTime: string, endTime: string) => {
-    await fetchEventHistory(startTime, endTime);
+    try {
+      await fetchEventHistory(startTime, endTime);
+    } catch (err) {
+      console.error("Error refreshing data:", err);
+      setError("Failed to refresh data with new date range. Please try again.");
+    }
   };
   
   return {

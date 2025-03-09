@@ -187,11 +187,25 @@ export const apiService = {
     pageId?: string
   ): Promise<any> => {
     try {
+      if (!nodeAddress) {
+        throw new Error('Node address is required');
+      }
+      
+      if (!startTime || !endTime) {
+        throw new Error('Start time and end time are required');
+      }
+      
+      if (!authHeader) {
+        throw new Error('Authorization header is required');
+      }
+      
       // Encode the node address
       const encodedNodeAddress = encodeURIComponent(nodeAddress);
       
       // Build the URL
       let url = `${CLIENT_EDGE_API_URL}/clientEdge/data/uplinkPayload/node/${encodedNodeAddress}/events/${endTime}/${startTime}`;
+      
+      console.log('Fetching event history from URL:', url);
       
       // Add page id if provided
       if (pageId) {
@@ -204,13 +218,30 @@ export const apiService = {
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to fetch tag event history: ${errorText || response.statusText}`);
+        console.error(`API Error (${response.status}): ${errorText || response.statusText}`);
+        throw new Error(`Failed to fetch tag event history: Status ${response.status} - ${errorText || response.statusText}`);
       }
       
-      const data = await response.json();
-      return data;
+      try {
+        const data = await response.json();
+        return data;
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        throw new Error(`Failed to parse event history response: ${parseError.message}`);
+      }
     } catch (error) {
-      console.error('Error fetching tag event history:', error);
+      // Enhance error message with more details
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Unknown error occurred fetching tag event history';
+      
+      console.error('Error fetching tag event history:', {
+        message: errorMessage,
+        nodeAddress,
+        startTime,
+        endTime
+      });
+      
       throw error;
     }
   }
