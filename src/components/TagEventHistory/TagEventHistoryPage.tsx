@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatDateForAPI } from '../../utils/dateUtils';
 import { apiService } from '../../services/api';
+import { useSuperTags } from '../../hooks/useSuperTags';
 
 // Import split components
 import { TagInfoCard } from './TagInfoCard';
@@ -55,6 +56,7 @@ export function TagEventHistoryPage() {
     'time', 
     'metadata.props.msgType', 
     'metadata.props.msgTypeDescription',
+    'sourceSupertagName', // Add the new column
     'formattedAddress',
     'metadata.props.lowVoltageFlag',
     'metadata.props.batteryVoltage',
@@ -64,6 +66,7 @@ export function TagEventHistoryPage() {
     'metadata.props.evCount-LTEmFailure',
     'metadata.props.chargeState',
     'metadata.props.fahrenheit',
+    'metadata.props.sourceSupertagId',
     'address_road',
     'address_city',
     'address_state',
@@ -106,6 +109,31 @@ export function TagEventHistoryPage() {
   // Get current date range values
   const { startTime, endTime } = getFormattedDates();
   
+  // Fetch available tags for mapping source SuperTag IDs to names
+  const { data: allTags } = useSuperTags(auth.token, null, []);
+  
+  // Create a map of nodeAddress to nodeName for quick lookups
+  const tagMap = useMemo(() => {
+    const map = new Map<string, string>();
+    
+    // Log the tags we're trying to map
+    console.log("Building tag map with", allTags.length, "tags");
+    
+    allTags.forEach(tag => {
+      if (tag.nodeAddress && tag.nodeName) {
+        // Use nodeAddress as key and nodeName as value
+        map.set(tag.nodeAddress, tag.nodeName);
+      }
+    });
+    
+    // Log some sample mappings for debugging
+    if (map.size > 0) {
+      console.log(`Created tag map with ${map.size} entries`);
+    }
+    
+    return map;
+  }, [allTags]);
+  
   // Fetch event history
   const {
     loading,
@@ -124,72 +152,96 @@ export function TagEventHistoryPage() {
     endTime
   );
 
-  // Enhance events with address data
+  // Helper function to map sourceSupertagId to a SuperTag name
+  const getSourceSupertagName = (sourceSupertagId: string | null | undefined) => {
+    if (!sourceSupertagId) return '';
+    
+    // Look up the actual SuperTag name
+    const name = tagMap.get(sourceSupertagId);
+    
+    // Return the name if found, otherwise just return the ID
+    return name || sourceSupertagId;
+  };
+
+  // Enhance events with address data and source SuperTag names
   useEffect(() => {
     if (events.length > 0) {
-      // Process events to add address data
-      const enhanceEventsWithAddress = async () => {
+      // Process events to add address data and source SuperTag names
+      const enhanceEvents = async () => {
         const enhancedEvents = [...events];
         let updated = false;
 
         for (let i = 0; i < enhancedEvents.length; i++) {
           const event = enhancedEvents[i];
+          let eventUpdated = false;
           
-          // Skip if already has address data
-          if (event.formattedAddress) continue;
-
-          // Find latitude and longitude from event data
-          let latitude = null;
-          let longitude = null;
-
-          // Check various places for coordinates
-          if (event.metadata?.props?.latitude && event.metadata?.props?.longitude) {
-            latitude = event.metadata.props.latitude;
-            longitude = event.metadata.props.longitude;
-          } else if (event.value?.latitude && event.value?.longitude) {
-            latitude = event.value.latitude;
-            longitude = event.value.longitude;
-          } else if (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) {
-            latitude = event.metadata.props.lat;
-            longitude = event.metadata.props.lng || event.metadata.props.lon;
-          } else if (event.value?.lat && (event.value?.lng || event.value?.lon)) {
-            latitude = event.value.lat;
-            longitude = event.value.lng || event.value.lon;
+          // Add source SuperTag name if not already present
+          const sourceSupertagId = event.metadata?.props?.sourceSupertagId;
+          if (sourceSupertagId && !event.sourceSupertagName) {
+            const supertagName = getSourceSupertagName(sourceSupertagId);
+            enhancedEvents[i] = {
+              ...enhancedEvents[i],
+              sourceSupertagName: supertagName
+            };
+            eventUpdated = true;
           }
+          
+          // Skip address lookup if already has address data
+          if (!event.formattedAddress) {
+            // Find latitude and longitude from event data
+            let latitude = null;
+            let longitude = null;
 
-          // If we found coordinates, fetch address
-          if (latitude && longitude) {
-            try {
-              // Convert to numbers if they're strings
-              const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
-              const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
-              
-              // Skip if values can't be parsed
-              if (isNaN(lat) || isNaN(lon)) continue;
-              
-              // Fetch address data
-              const addressData = await apiService.fetchAddressFromCoordinates(lat, lon);
-              
-              // Add address data to the event
-              enhancedEvents[i] = {
-                ...event,
-                addressData: addressData,
-                formattedAddress: addressData.display_name,
-                // Add individual address components
-                ...Object.keys(addressData.address || {}).reduce((obj, key) => {
-                  obj[`address_${key}`] = addressData.address[key];
-                  return obj;
-                }, {} as Record<string, string>),
-                // Ensure these are always available and not overridden
-                latitude: lat,
-                longitude: lon
-              };
-              
-              updated = true;
-            } catch (err) {
-              console.error(`Error fetching address for event:`, err);
+            // Check various places for coordinates
+            if (event.metadata?.props?.latitude && event.metadata?.props?.longitude) {
+              latitude = event.metadata.props.latitude;
+              longitude = event.metadata.props.longitude;
+            } else if (event.value?.latitude && event.value?.longitude) {
+              latitude = event.value.latitude;
+              longitude = event.value.longitude;
+            } else if (event.metadata?.props?.lat && (event.metadata?.props?.lng || event.metadata?.props?.lon)) {
+              latitude = event.metadata.props.lat;
+              longitude = event.metadata.props.lng || event.metadata.props.lon;
+            } else if (event.value?.lat && (event.value?.lng || event.value?.lon)) {
+              latitude = event.value.lat;
+              longitude = event.value.lng || event.value.lon;
+            }
+
+            // If we found coordinates, fetch address
+            if (latitude && longitude) {
+              try {
+                // Convert to numbers if they're strings
+                const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
+                const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+                
+                // Skip if values can't be parsed
+                if (isNaN(lat) || isNaN(lon)) continue;
+                
+                // Fetch address data
+                const addressData = await apiService.fetchAddressFromCoordinates(lat, lon);
+                
+                // Add address data to the event
+                enhancedEvents[i] = {
+                  ...enhancedEvents[i],
+                  addressData: addressData,
+                  formattedAddress: addressData.display_name,
+                  // Add individual address components
+                  ...Object.keys(addressData.address || {}).reduce((obj, key) => {
+                    obj[`address_${key}`] = addressData.address[key];
+                    return obj;
+                  }, {} as Record<string, string>),
+                  // Ensure these are always available and not overridden
+                  latitude: lat,
+                  longitude: lon
+                };
+                eventUpdated = true;
+              } catch (err) {
+                console.error(`Error fetching address for event:`, err);
+              }
             }
           }
+
+          updated = updated || eventUpdated;
         }
 
         // Only update if we actually modified events
@@ -198,16 +250,18 @@ export function TagEventHistoryPage() {
         }
       };
 
-      enhanceEventsWithAddress();
+      enhanceEvents();
     }
-  }, [events, setEvents]);
+  }, [events, setEvents, tagMap]);
   
   // Update column order when allColumns changes
   useEffect(() => {
     if (allColumns.length > 0) {
       // Set column order if it's empty or if new columns are found
       if (columnOrder.length === 0 || !allColumns.every(col => columnOrder.includes(col))) {
-        setColumnOrder([...allColumns]);
+        // Make sure our custom column is included
+        const newColumnOrder = ['sourceSupertagName', ...allColumns];
+        setColumnOrder(newColumnOrder);
         
         // Update visible columns to include location columns by default if they exist
         const locationColumns = allColumns.filter(col => 
@@ -372,6 +426,19 @@ export function TagEventHistoryPage() {
   
   // Enhanced function to display nested properties, with better handling for special types
   const nestedPropertyTemplate = (rowData: any, field: { field: string }) => {
+    // Special handling for our custom source SuperTag name column
+    if (field.field === 'sourceSupertagName') {
+      const sourceSupertagId = rowData.metadata?.props?.sourceSupertagId;
+      if (!sourceSupertagId) return '';
+      
+      // Use the already calculated name if available, otherwise calculate it
+      if (rowData.sourceSupertagName) {
+        return rowData.sourceSupertagName;
+      }
+      
+      return getSourceSupertagName(sourceSupertagId);
+    }
+
     const paths = field.field.split('.');
     let value = rowData;
     
@@ -598,6 +665,13 @@ export function TagEventHistoryPage() {
         type: event.type
       };
       
+      // Add sourceSupertagName if available
+      if (event.sourceSupertagName) {
+        flatEvent.sourceSupertagName = event.sourceSupertagName;
+      } else if (event.metadata?.props?.sourceSupertagId) {
+        flatEvent.sourceSupertagName = getSourceSupertagName(event.metadata.props.sourceSupertagId);
+      }
+      
       // Helper function to flatten nested objects
       const flattenObject = (obj: any, prefix = '') => {
         if (!obj || typeof obj !== 'object') return;
@@ -728,12 +802,12 @@ export function TagEventHistoryPage() {
 
   // Column selection actions
   const handleSelectAll = () => {
-    setVisibleColumns([...allColumns]);
+    setVisibleColumns([...allColumns, 'sourceSupertagName']);
   };
 
   const handleDeselectAll = () => {
     // Keep mandatory columns like time and type
-    setVisibleColumns(['time', 'metadata.props.msgType']);
+    setVisibleColumns(['time', 'metadata.props.msgType', 'sourceSupertagName']);
   };
 
   // Column dragging functions

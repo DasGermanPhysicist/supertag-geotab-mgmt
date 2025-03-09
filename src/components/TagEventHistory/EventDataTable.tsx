@@ -33,6 +33,11 @@ interface EventDataTableProps {
 
 // Helper function to format column names for display
 const formatColumnName = (column: string): string => {
+  // Special case for our custom source SuperTag name column
+  if (column === 'sourceSupertagName') {
+    return 'Source SuperTag Name';
+  }
+
   // Remove any prefix paths (like metadata.props. or value.)
   let displayName = column;
   
@@ -246,9 +251,30 @@ export function EventDataTable({
           )}
         />
         
+        {/* Include the Source SuperTag Name column */}
+        <Column
+          field="sourceSupertagName"
+          header={
+            <div className="flex items-center cursor-move" 
+                 draggable
+                 onDragStart={() => handleDragStart('sourceSupertagName')}
+                 onDragOver={(e) => handleDragOver(e, 'sourceSupertagName')}
+            >
+              <GripVertical className="h-4 w-4 mr-1 text-gray-400" />
+              <span>Source SuperTag Name</span>
+            </div>
+          }
+          sortable
+          body={(rowData) => nestedPropertyTemplate(rowData, { field: 'sourceSupertagName' })}
+          filter
+          filterPlaceholder="Search Source SuperTag"
+          filterElement={(options) => textFilterTemplate({...options, field: 'sourceSupertagName'})}
+          showFilterMenu={false}
+        />
+        
         {/* Dynamically include selected columns */}
         {visibleColumns
-          .filter(col => !['time', 'metadata.props.msgType'].includes(col))
+          .filter(col => !['time', 'metadata.props.msgType', 'sourceSupertagName'].includes(col))
           .map(col => (
             <Column
               key={col}

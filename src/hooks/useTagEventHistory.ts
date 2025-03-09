@@ -151,7 +151,7 @@ export function useTagEventHistory(
         'altitude', 'speed', 'heading', 'batteryLevel', 'batteryVoltage',
         'batteryConsumed', 'batteryCapacity', 'lowVoltageFlag', 'batteryConsumed_mAh',
         'batteryCapacity_mAh', 'evCount-LTEmSuccess', 'evCount-LTEmFailure',
-        'chargeState', 'fahrenheit'
+        'chargeState', 'fahrenheit', 'sourceSupertagId'
       ];
       
       // Search for special properties in all nested objects
@@ -188,7 +188,7 @@ export function useTagEventHistory(
       'latitude', 'longitude', 'metadata.props.latitude', 'metadata.props.longitude',
       'metadata.props.lowVoltageFlag', 'metadata.props.batteryVoltage', 'metadata.props.batteryConsumed_mAh', 
       'metadata.props.batteryCapacity_mAh', 'metadata.props.evCount-LTEmSuccess', 'metadata.props.evCount-LTEmFailure',
-      'metadata.props.chargeState', 'metadata.props.fahrenheit'
+      'metadata.props.chargeState', 'metadata.props.fahrenheit', 'metadata.props.sourceSupertagId'
     ];
     
     // Sort columns with prioritized columns first, then by categories
