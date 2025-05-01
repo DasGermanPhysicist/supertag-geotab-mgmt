@@ -289,6 +289,39 @@
   .p-keyboard-key {
     @apply px-2 py-1 text-xs bg-gray-100 rounded border border-gray-300 text-gray-700 font-mono shadow-sm;
   }
+  
+  /* Marker cluster customizations */
+  .marker-cluster {
+    @apply bg-blue-100;
+  }
+  
+  .marker-cluster div {
+    @apply bg-blue-500 text-white font-bold !important;
+  }
+  
+  .marker-cluster-small {
+    @apply bg-blue-100 !important;
+  }
+  
+  .marker-cluster-small div {
+    @apply bg-blue-500 !important;
+  }
+  
+  .marker-cluster-medium {
+    @apply bg-yellow-100 !important;
+  }
+  
+  .marker-cluster-medium div {
+    @apply bg-yellow-500 !important;
+  }
+  
+  .marker-cluster-large {
+    @apply bg-red-100 !important;
+  }
+  
+  .marker-cluster-large div {
+    @apply bg-red-500 !important;
+  }
 }
 
 @layer utilities {

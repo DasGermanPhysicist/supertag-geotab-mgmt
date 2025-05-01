@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Building2, LogOut, Menu, X, Settings, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { Building2, LogOut, Menu, X, Settings, ChevronDown, LayoutDashboard, Map } from 'lucide-react';
 import { PrimeDataTable } from './DataTable/PrimeDataTable';
 import { SiteSelector } from './SiteSelector';
 import { OrganizationSelector } from './OrganizationSelector';
 import { useOrganizations } from '../hooks/useOrganizations';
 import { useSites } from '../hooks/useSites';
 import { useSuperTags } from '../hooks/useSuperTags';
-import { AuthState } from '../types';
+import { AuthState, SuperTag } from '../types';
 import { sendNotification } from '../services/notifications';
 import { apiService } from '../services/api';
+import { TagMapView } from './TagMapView'; // Import the new map component
 
 interface AuthenticatedAppProps {
   auth: AuthState;
@@ -17,6 +18,8 @@ interface AuthenticatedAppProps {
 
 export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table'); // Add view mode state
+  const [selectedMapTag, setSelectedMapTag] = useState<SuperTag | null>(null);
 
   const { 
     organizations, 
@@ -273,14 +276,59 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                   <span className="font-medium">Showing data from all sites</span>
                 </div>
               )}
-              <PrimeDataTable 
-                data={data} 
-                auth={{ token: auth.token, username: auth.username }}
-                onDataChange={handleDataChange}
-                onPairGeotab={handlePairGeotab}
-                onUnpairGeotab={handleUnpairGeotab}
-                onSetHydrophobic={handleSetHydrophobic}
-              />
+
+              {/* View mode toggle */}
+              <div className="flex justify-end">
+                <div className="inline-flex rounded-md shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('table')}
+                    className={`
+                      relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-l-lg border 
+                      ${viewMode === 'table' 
+                        ? 'bg-blue-600 text-white border-blue-600 z-10' 
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    <LayoutDashboard className="h-5 w-5 mr-2" />
+                    Table View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('map')}
+                    className={`
+                      relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg border
+                      ${viewMode === 'map' 
+                        ? 'bg-blue-600 text-white border-blue-600 z-10' 
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }
+                    `}
+                  >
+                    <Map className="h-5 w-5 mr-2" />
+                    Map View
+                  </button>
+                </div>
+              </div>
+              
+              {/* Conditionally render table or map based on view mode */}
+              {viewMode === 'table' ? (
+                <PrimeDataTable 
+                  data={data} 
+                  auth={{ token: auth.token, username: auth.username }}
+                  onDataChange={handleDataChange}
+                  onPairGeotab={handlePairGeotab}
+                  onUnpairGeotab={handleUnpairGeotab}
+                  onSetHydrophobic={handleSetHydrophobic}
+                />
+              ) : (
+                <TagMapView 
+                  data={data}
+                  selectedRow={selectedMapTag}
+                  setSelectedRow={setSelectedMapTag}
+                  loading={loading}
+                />
+              )}
             </div>
           ) : (
             <div className="text-center py-12">
