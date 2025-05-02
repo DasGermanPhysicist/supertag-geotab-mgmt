@@ -1,10 +1,10 @@
 import React from 'react';
 import { Button } from 'primereact/button';
-import { Table2, Map } from 'lucide-react';
+import { Table2, Map, BarChart2 } from 'lucide-react';
 
 interface EventViewSelectorProps {
-  currentView: 'table' | 'map';
-  setCurrentView: (view: 'table' | 'map') => void;
+  currentView: 'table' | 'map' | 'analysis';
+  setCurrentView: (view: 'table' | 'map' | 'analysis') => void;
   locationCount: number;
   totalCount: number;
 }
@@ -38,9 +38,17 @@ export function EventViewSelector({
           badgeClassName="bg-green-500"
           disabled={locationCount === 0}
         />
+        
+        <Button
+          icon={<BarChart2 className="h-4 w-4 mr-1" />}
+          label="Analysis"
+          className={`p-button-sm ${currentView === 'analysis' ? 'p-button-primary' : 'p-button-outlined'}`}
+          onClick={() => setCurrentView('analysis')}
+          disabled={totalCount === 0}
+        />
       </div>
       
-      {locationCount > 0 && (
+      {currentView === 'map' && locationCount > 0 && (
         <div className="ml-4 text-xs text-gray-500">
           {locationCount} of {totalCount} events have location data
         </div>

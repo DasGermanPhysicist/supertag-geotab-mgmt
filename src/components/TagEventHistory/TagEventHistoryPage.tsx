@@ -21,6 +21,7 @@ import { EventLocationInfo } from './EventLocationInfo';
 import { EventMap } from './EventMap';
 import { EventViewSelector } from './EventViewSelector';
 import { EventRowMapSync } from './EventRowMapSync';
+import { EventStateDurations } from './EventStateDurations';
 
 export function TagEventHistoryPage() {
   // Navigation and route parameters
@@ -47,7 +48,7 @@ export function TagEventHistoryPage() {
   const [filters, setFilters] = useState<Record<string, any>>({});
   
   // Set the current view mode (table or map)
-  const [currentView, setCurrentView] = useState<'table' | 'map'>('table');
+  const [currentView, setCurrentView] = useState<'table' | 'map' | 'analysis'>('table');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   
   // Define initial visible columns - prioritize metadata.props over value when they both exist
@@ -597,7 +598,7 @@ export function TagEventHistoryPage() {
     }
     
     // Format battery voltage (not a percentage, but a voltage value)
-    if (fieldName.includes('batteryVoltage')) {
+    if (fieldName.includes('batteryvoltage')) {
       const num = parseFloat(value);
       if (!isNaN(num)) {
         return `${num.toFixed(2)}V`;
@@ -986,16 +987,70 @@ export function TagEventHistoryPage() {
           />
         </div>
         
-        {/* View selector for table/map */}
-        <EventViewSelector
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-          locationCount={locationDataInfo.count.total}
-          totalCount={events.length}
-        />
+        {/* Extended View selector for table/map/analysis */}
+        <div className="flex items-center p-3 bg-white rounded-lg shadow-sm border border-gray-200 mb-2">
+          <div className="hidden sm:flex items-center">
+            <span className="text-sm text-gray-600 mr-3">View:</span>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setCurrentView('table')}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1 ${
+                currentView === 'table' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span className="h-4 w-4 pi pi-table"></span>
+              <span>Table</span>
+            </button>
+            
+            <button
+              onClick={() => setCurrentView('map')}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1 ${
+                currentView === 'map' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              disabled={locationDataInfo.count.total === 0}
+            >
+              <span className="h-4 w-4 pi pi-map-marker"></span>
+              <span>Map</span>
+              {locationDataInfo.count.total > 0 && (
+                <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                  currentView === 'map' ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'
+                }`}>
+                  {locationDataInfo.count.total}
+                </span>
+              )}
+            </button>
+            
+            <button
+              onClick={() => setCurrentView('analysis')}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-1 ${
+                currentView === 'analysis' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              disabled={events.length === 0}
+            >
+              <span className="h-4 w-4 pi pi-chart-bar"></span>
+              <span>Analysis</span>
+            </button>
+          </div>
+          
+          {currentView === 'map' && locationDataInfo.count.total > 0 && (
+            <div className="ml-4 text-xs text-gray-500">
+              {locationDataInfo.count.total} of {events.length} events have location data
+            </div>
+          )}
+          
+          <div className="flex-grow"></div>
+        </div>
         
-        {/* Show the current view (table or map) */}
-        {currentView === 'table' ? (
+        {/* Show the current view (table, map, or analysis) */}
+        {currentView === 'table' && (
           <EventDataTable
             events={events}
             loading={eventLoading}
@@ -1016,7 +1071,9 @@ export function TagEventHistoryPage() {
             selectedEventId={selectedEventId}
             onEventSelect={handleEventSelect}
           />
-        ) : (
+        )}
+        
+        {currentView === 'map' && (
           <EventMap
             events={events}
             selectedEventId={selectedEventId}
@@ -1025,8 +1082,15 @@ export function TagEventHistoryPage() {
           />
         )}
         
+        {currentView === 'analysis' && (
+          <EventStateDurations 
+            events={events}
+            dateRange={dateRange}
+          />
+        )}
+        
         {/* Load more button for both views */}
-        {currentView === 'map' && hasMore && (
+        {(currentView === 'map' || currentView === 'analysis') && hasMore && (
           <div className="flex justify-center mt-2 mb-2">
             <button
               onClick={loadMore}
