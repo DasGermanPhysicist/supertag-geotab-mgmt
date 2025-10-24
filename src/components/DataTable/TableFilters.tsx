@@ -48,16 +48,150 @@ export function TableFilters({
   setShowColumnFilterModal
 }: TableFiltersProps) {
   return (
-    <div className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <div className="w-full sm:w-auto flex items-center gap-2">
-        <div className="relative w-full sm:w-64">
+    <div className="p-4 space-y-4">
+      {/* Buttons Row */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowSuperTagsOnly(!showSuperTagsOnly)}
+            className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+              showSuperTagsOnly 
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+            title={showSuperTagsOnly ? "Showing SuperTags only" : "Show all tags"}
+          >
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">SuperTags only</span>
+            {showSuperTagsOnly && <Check className="h-3 w-3 ml-1" />}
+          </button>
+
+          <button
+            onClick={() => setShowColumnFilterModal(true)}
+            className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
+              Object.keys(columnFilters).length > 0
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+            title="Filter by specific columns"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden sm:inline">Column Filters</span>
+            {Object.keys(columnFilters).length > 0 && (
+              <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
+                {Object.keys(columnFilters).length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowColumnSelector(true)}
+            className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700"
+            title="Configure columns"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            <span className="hidden sm:inline">Columns</span>
+          </button>
+        </div>
+
+        <div className="flex flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end gap-2">
+          <button
+            onClick={handleRefreshData}
+            className={`btn btn-secondary flex items-center gap-1 text-sm py-2 ${isRefreshing ? 'opacity-70' : ''}`}
+            disabled={isRefreshing}
+          >
+            <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setBulkMode('pair');
+                setShowBulkModal(true);
+              }}
+              className="btn btn-success flex items-center gap-1 text-sm py-2"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Bulk Pair</span>
+            </button>
+            <button
+              onClick={() => {
+                setBulkMode('unpair');
+                setShowBulkModal(true);
+              }}
+              className="btn btn-danger flex items-center gap-1 text-sm py-2"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Bulk Unpair</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setHydrophobicBulkValue(true);
+                setShowHydrophobicBulkModal(true);
+              }}
+              className="btn btn-primary flex items-center gap-1 text-sm py-2"
+            >
+              <Droplets className="h-4 w-4" />
+              <span className="hidden sm:inline">Bulk Hydrophobic</span>
+            </button>
+          </div>
+
+          {selectedRow && (
+            <>
+              {!selectedRow.geotabSerialNumber ? (
+                <button
+                  onClick={() => setShowGeotabModal(true)}
+                  className="btn btn-success flex items-center gap-1 text-sm py-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Pair Geotab</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleUnpairGeotab}
+                  className="btn btn-danger flex items-center gap-1 text-sm py-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Unpair Geotab</span>
+                </button>
+              )}
+
+              {selectedRow.nodeAddress && (
+                <button
+                  onClick={() => setShowHydrophobicModal(true)}
+                  className="btn btn-primary flex items-center gap-1 text-sm py-2"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Hydrophobic</span>
+                </button>
+              )}
+            </>
+          )}
+
+          <button
+            onClick={downloadCSV}
+            className="btn btn-primary flex items-center gap-1 text-sm py-2"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar Row */}
+      <div className="flex justify-center">
+        <div className="relative w-full max-w-md">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
           <input
             type="text"
             placeholder="Filter data..."
-            className="form-input pl-9 py-2 text-sm"
+            className="form-input pl-9 py-2 text-sm w-full"
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
           />
@@ -70,134 +204,6 @@ export function TableFilters({
             </button>
           )}
         </div>
-        
-        <button
-          onClick={() => setShowSuperTagsOnly(!showSuperTagsOnly)}
-          className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
-            showSuperTagsOnly 
-              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-          }`}
-          title={showSuperTagsOnly ? "Showing SuperTags only" : "Show all tags"}
-        >
-          <Tag className="h-4 w-4" />
-          <span className="hidden sm:inline">SuperTags only</span>
-          {showSuperTagsOnly && <Check className="h-3 w-3 ml-1" />}
-        </button>
-
-        <button
-          onClick={() => setShowColumnFilterModal(true)}
-          className={`flex items-center gap-1 px-3 py-2 text-sm rounded-lg transition-colors ${
-            Object.keys(columnFilters).length > 0
-              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-          }`}
-          title="Filter by specific columns"
-        >
-          <Filter className="h-4 w-4" />
-          <span className="hidden sm:inline">Column Filters</span>
-          {Object.keys(columnFilters).length > 0 && (
-            <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
-              {Object.keys(columnFilters).length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setShowColumnSelector(true)}
-          className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700"
-          title="Configure columns"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          <span className="hidden sm:inline">Columns</span>
-        </button>
-      </div>
-
-      <div className="flex flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end gap-2">
-        <button
-          onClick={handleRefreshData}
-          className={`btn btn-secondary flex items-center gap-1 text-sm py-2 ${isRefreshing ? 'opacity-70' : ''}`}
-          disabled={isRefreshing}
-        >
-          <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span className="hidden sm:inline">Refresh</span>
-        </button>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setBulkMode('pair');
-              setShowBulkModal(true);
-            }}
-            className="btn btn-success flex items-center gap-1 text-sm py-2"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Bulk Pair</span>
-          </button>
-          <button
-            onClick={() => {
-              setBulkMode('unpair');
-              setShowBulkModal(true);
-            }}
-            className="btn btn-danger flex items-center gap-1 text-sm py-2"
-          >
-            <Upload className="h-4 w-4" />
-            <span className="hidden sm:inline">Bulk Unpair</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setHydrophobicBulkValue(true);
-              setShowHydrophobicBulkModal(true);
-            }}
-            className="btn btn-primary flex items-center gap-1 text-sm py-2"
-          >
-            <Droplets className="h-4 w-4" />
-            <span className="hidden sm:inline">Bulk Hydrophobic</span>
-          </button>
-        </div>
-
-        {selectedRow && (
-          <>
-            {!selectedRow.geotabSerialNumber ? (
-              <button
-                onClick={() => setShowGeotabModal(true)}
-                className="btn btn-success flex items-center gap-1 text-sm py-2"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Pair Geotab</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleUnpairGeotab}
-                className="btn btn-danger flex items-center gap-1 text-sm py-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Unpair Geotab</span>
-              </button>
-            )}
-
-            {selectedRow.nodeAddress && (
-              <button
-                onClick={() => setShowHydrophobicModal(true)}
-                className="btn btn-primary flex items-center gap-1 text-sm py-2"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Hydrophobic</span>
-              </button>
-            )}
-          </>
-        )}
-
-        <button
-          onClick={downloadCSV}
-          className="btn btn-primary flex items-center gap-1 text-sm py-2"
-        >
-          <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">Export CSV</span>
-        </button>
       </div>
     </div>
   );
