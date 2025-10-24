@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatDateForAPI, formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
 import { apiService } from '../../services/api';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 // Import split components
 import { TagInfoCard } from './TagInfoCard';
@@ -42,36 +43,35 @@ export function TagEventHistoryPage() {
   // Initialize date range with default values
   const [dateRange, setDateRange] = useState<Date[]>([oneDayAgo, now]);
 
-  // Table state
-  const [globalFilter, setGlobalFilter] = useState('');
-  const [selectedMsgTypes, setSelectedMsgTypes] = useState<string[]>([]);
-  const [filters, setFilters] = useState<Record<string, any>>({});
+  // Table state - persisted
+  const [globalFilter, setGlobalFilter] = usePersistedState('tagEventHistory.globalFilter', '');
+  const [selectedMsgTypes, setSelectedMsgTypes] = usePersistedState<string[]>('tagEventHistory.selectedMsgTypes', []);
+  const [filters, setFilters] = usePersistedState<Record<string, any>>('tagEventHistory.filters', {});
   
-  // Set the current view mode (table or map)
-  const [currentView, setCurrentView] = useState<'table' | 'map' | 'analysis'>('table');
+  // Set the current view mode (table or map) - persisted
+  const [currentView, setCurrentView] = usePersistedState<'table' | 'map' | 'analysis'>('tagEventHistory.currentView', 'table');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   
-  // Define initial visible columns - prioritize metadata.props over value when they both exist
-  const [visibleColumns, setVisibleColumns] = useState<string[]>([
+  // Define initial visible columns - prioritize metadata.props over value when they both exist - persisted
+  const [visibleColumns, setVisibleColumns] = usePersistedState<string[]>('tagEventHistory.visibleColumns', [
     'time', 
     'metadata.props.msgType', 
     'metadata.props.msgTypeDescription',
-    'sourceSupertagName', // Add the new column
-    'formattedAddress',
-    'metadata.props.lowVoltageFlag',
     'metadata.props.batteryVoltage',
-    'metadata.props.batteryConsumed_mAh',
-    'metadata.props.batteryCapacity_mAh',
-    'metadata.props.evCount-LTEmSuccess',
-    'metadata.props.evCount-LTEmFailure',
-    'metadata.props.chargeState',
-    'metadata.props.fahrenheit',
-    'metadata.props.sourceSupertagId',
-    'address_road',
-    'address_city',
-    'address_state',
-    'address_postcode',
-    'address_country',
+    'metadata.props.temperature',
+    'metadata.props.motionState',
+    'metadata.props.locationName',
+    'metadata.props.areaName',
+    'metadata.props.zoneName',
+    'metadata.props.assetName',
+    'metadata.props.geotabDeviceId',
+    'metadata.props.geotabSerialNumber',
+    'metadata.props.macAddress',
+    'metadata.props.nodeAddress',
+    'metadata.props.nodeName',
+    'metadata.props.hydrophobic',
+    'metadata.props.batteryStatus',
+    'metadata.props.isLost',
     'latitude',
     'longitude',
     'uuid'
@@ -82,7 +82,7 @@ export function TagEventHistoryPage() {
   // Column search state
   const [columnSearchTerm, setColumnSearchTerm] = useState('');
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
-  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnOrder, setColumnOrder] = usePersistedState<string[]>('tagEventHistory.columnOrder', []);
   
   // Site-specific tag data for mapping
   const [siteTagData, setSiteTagData] = useState<any[]>([]);

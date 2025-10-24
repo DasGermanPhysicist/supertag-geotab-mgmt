@@ -7,6 +7,7 @@ import { Tag } from 'primereact/tag';
 import { ToggleButton } from 'primereact/togglebutton';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 // Import Leaflet CSS - we need to include this for the map to render properly
 import 'leaflet/dist/leaflet.css';
@@ -301,10 +302,10 @@ function MapLegend() {
 export function EventMap({ events, selectedEventId, onEventSelect, mapHeight = 500 }: EventMapProps) {
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
   const locationPoints = useLocationData(events);
-  const [showPath, setShowPath] = useState(true);
+  const [showPath, setShowPath] = usePersistedState('eventMap.showPath', true);
   const [selectedPoint, setSelectedPoint] = useState<string | null>(selectedEventId || null);
-  const [mapType, setMapType] = useState<'streets' | 'satellite'>('streets');
-  const [showLegend, setShowLegend] = useState(true);
+  const [mapType, setMapType] = usePersistedState<'streets' | 'satellite'>('eventMap.mapType', 'streets');
+  const [showLegend, setShowLegend] = usePersistedState('eventMap.showLegend', true);
 
   // Set up the center point for the map
   const mapCenter = useMemo(() => {

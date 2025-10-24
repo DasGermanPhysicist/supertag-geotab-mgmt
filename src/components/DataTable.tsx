@@ -22,7 +22,7 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [columnVisibility, setColumnVisibility] = usePersistedState<ColumnVisibility>('columnVisibility', {});
   const [sortConfig, setSortConfig] = usePersistedState<{ key: string; direction: 'asc' | 'desc' } | null>('sortConfig', null);
-  const [filterText, setFilterText] = useState('');
+  const [filterText, setFilterText] = usePersistedState('dataTable.filterText', '');
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [columnOrder, setColumnOrder] = usePersistedState<string[]>('columnOrder', []);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);

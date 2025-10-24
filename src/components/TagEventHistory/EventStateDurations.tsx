@@ -8,6 +8,7 @@ import { Panel } from 'primereact/panel';
 import { Clock, PieChart, BarChart2, Filter } from 'lucide-react';
 import { TagEvent } from '../../types';
 import { formatDuration, formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
+import { usePersistedState } from '../../hooks/usePersistedState';
 
 interface EventStateDurationsProps {
   events: TagEvent[];
@@ -33,8 +34,8 @@ interface StateDuration {
 }
 
 export function EventStateDurations({ events, dateRange }: EventStateDurationsProps) {
-  const [selectedParameter, setSelectedParameter] = useState<StateParameter | null>(null);
-  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
+  const [selectedParameter, setSelectedParameter] = usePersistedState<StateParameter | null>('eventStateDurations.selectedParameter', null);
+  const [chartType, setChartType] = usePersistedState<'pie' | 'bar'>('eventStateDurations.chartType', 'pie');
 
   // State duration data
   const [durations, setDurations] = useState<StateDuration[]>([]);
