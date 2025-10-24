@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { Button } from 'primereact/button';
@@ -9,7 +9,7 @@ import { Dialog } from 'primereact/dialog';
 import { Toast } from 'primereact/toast';
 import { Toolbar } from 'primereact/toolbar';
 import { useNavigate } from 'react-router-dom';
-import { History, Plus, Trash2, Droplets, Check, GripVertical } from 'lucide-react';
+import { History, Plus, Trash2, Droplets, Check, GripVertical, Cpu } from 'lucide-react';
 
 import { SuperTag } from '../../types';
 import { BulkOperationsModal } from '../BulkOperationsModal';
@@ -30,6 +30,76 @@ import './index.css';
 // Registration token constant
 const SUPERTAG_REGISTRATION_TOKEN = 'D29B3BE8F2CC9A1A7051';
 
+// CellID Processing Button Component
+const CellIdProcessingButton = ({ rowData, onGetCellIdProcessing, onSetCellIdProcessing }) => {
+  const [isEnabled, setIsEnabled] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Load initial state
+  useEffect(() => {
+    const loadCellIdStatus = async () => {
+      if (!rowData.nodeAddress) return;
+      
+      try {
+        setIsLoading(true);
+        const result = await onGetCellIdProcessing(rowData.nodeAddress);
+        if (result.success && result.data) {
+          setIsEnabled(result.data.enabled);
+        }
+      } catch (error) {
+        console.error('Error loading cellID processing status:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCellIdStatus();
+  }, [rowData.nodeAddress, onGetCellIdProcessing]);
+
+  const handleToggle = async () => {
+    if (!rowData.nodeAddress || isLoading) return;
+
+    try {
+      setIsLoading(true);
+      const newState = !isEnabled;
+      const result = await onSetCellIdProcessing(rowData.nodeAddress, newState);
+      
+      if (result.success) {
+        setIsEnabled(newState);
+      }
+    } catch (error) {
+      console.error('Error toggling cellID processing:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getButtonClass = () => {
+    if (isLoading) return "p-button-rounded p-button-secondary p-button-text";
+    if (isEnabled === true) return "p-button-rounded p-button-success p-button-text";
+    if (isEnabled === false) return "p-button-rounded p-button-danger p-button-text";
+    return "p-button-rounded p-button-secondary p-button-text";
+  };
+
+  const getTooltip = () => {
+    if (isLoading) return "Loading...";
+    if (isEnabled === true) return "CellID Processing: Enabled (Click to disable)";
+    if (isEnabled === false) return "CellID Processing: Disabled (Click to enable)";
+    return "CellID Processing: Unknown";
+  };
+
+  return (
+    <Button
+      icon={<Cpu className="h-4 w-4" />}
+      className={getButtonClass()}
+      onClick={handleToggle}
+      disabled={isLoading}
+      tooltip={getTooltip()}
+      tooltipOptions={{ position: 'top' }}
+    />
+  );
+};
+
 interface PrimeDataTableProps {
   data: SuperTag[];
   auth: { token?: string; username?: string };
@@ -37,6 +107,8 @@ interface PrimeDataTableProps {
   onPairGeotab: (macAddress: string, geotabSerialNumber: string) => Promise<{ success: boolean; error?: Error }>;
   onUnpairGeotab: (macAddress: string) => Promise<{ success: boolean; error?: Error }>;
   onSetHydrophobic: (nodeAddress: string, value: boolean) => Promise<{ success: boolean; error?: Error }>;
+  onGetCellIdProcessing: (nodeAddress: string) => Promise<{ success: boolean; data?: { enabled: boolean }; error?: Error }>;
+  onSetCellIdProcessing: (nodeAddress: string, enabled: boolean) => Promise<{ success: boolean; error?: Error }>;
 }
 
 // Helper function to format column names for display
@@ -82,7 +154,9 @@ export function PrimeDataTable({
   onDataChange,
   onPairGeotab,
   onUnpairGeotab,
-  onSetHydrophobic
+  onSetHydrophobic,
+  onGetCellIdProcessing,
+  onSetCellIdProcessing
 }: PrimeDataTableProps) {
   const navigate = useNavigate();
   const toast = useRef<Toast>(null);
@@ -100,6 +174,8 @@ export function PrimeDataTable({
     onPairGeotab, 
     onUnpairGeotab, 
     onSetHydrophobic,
+    onGetCellIdProcessing,
+    onSetCellIdProcessing,
     SUPERTAG_REGISTRATION_TOKEN
   });
 
@@ -186,6 +262,14 @@ export function PrimeDataTable({
             }}
             tooltip="Toggle Hydrophobic"
             tooltipOptions={{ position: 'top' }}
+          />
+        )}
+        
+        {rowData.nodeAddress && (
+          <CellIdProcessingButton 
+            rowData={rowData}
+            onGetCellIdProcessing={onGetCellIdProcessing}
+            onSetCellIdProcessing={onSetCellIdProcessing}
           />
         )}
       </div>

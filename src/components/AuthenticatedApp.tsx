@@ -123,6 +123,49 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
     }
   };
 
+  const handleGetCellIdProcessing = async (nodeAddress) => {
+    try {
+      console.log(`Attempting to get cellID processing status for node ${nodeAddress}`);
+      
+      if (!nodeAddress) {
+        throw new Error("Node address is required");
+      }
+      
+      const result = await apiService.getCellIdProcessing(nodeAddress, auth.token!);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('Error getting cellID processing status:', error);
+      return { success: false, error };
+    }
+  };
+
+  const handleSetCellIdProcessing = async (nodeAddress, enabled) => {
+    try {
+      console.log(`Attempting to set cellID processing=${enabled} for node ${nodeAddress}`);
+      
+      if (!nodeAddress) {
+        throw new Error("Node address is required");
+      }
+      
+      await apiService.setCellIdProcessing(nodeAddress, enabled, auth.token!);
+      
+      if (auth.username) {
+        await sendNotification({
+          email: auth.username,
+          macAddress: nodeAddress,
+          type: 'cellIdProcessing',
+          cellIdProcessingValue: enabled
+        });
+      }
+      
+      refreshData();
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting cellID processing:', error);
+      return { success: false, error };
+    }
+  };
+
   const error = orgError || siteError || dataError;
 
   return (
@@ -320,6 +363,8 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                   onPairGeotab={handlePairGeotab}
                   onUnpairGeotab={handleUnpairGeotab}
                   onSetHydrophobic={handleSetHydrophobic}
+                  onGetCellIdProcessing={handleGetCellIdProcessing}
+                  onSetCellIdProcessing={handleSetCellIdProcessing}
                 />
               ) : (
                 <TagMapView 

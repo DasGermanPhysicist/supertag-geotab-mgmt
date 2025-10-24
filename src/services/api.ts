@@ -244,5 +244,67 @@ export const apiService = {
       
       throw error;
     }
+  },
+
+  getCellIdProcessing: async (nodeAddress: string, authHeader: string): Promise<{ enabled: boolean }> => {
+    try {
+      const encodedNodeAddress = encodeURIComponent(nodeAddress);
+      const url = `${API_BASE_URL}/networkAsset/airfinder/v2/supertags/${encodedNodeAddress}/cellIdProcessing`;
+      
+      console.log(`Getting cellID processing status for ${nodeAddress}`);
+      console.log(`API URL: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error: ${response.status} ${response.statusText}`);
+        console.error(`Response body: ${errorText}`);
+        throw new Error(`Failed to get cellID processing status: ${errorText || response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log(`CellID processing status for ${nodeAddress}:`, result);
+      return result;
+    } catch (error) {
+      console.error("Error in getCellIdProcessing:", error);
+      throw error;
+    }
+  },
+
+  setCellIdProcessing: async (nodeAddress: string, enabled: boolean, authHeader: string): Promise<void> => {
+    try {
+      const encodedNodeAddress = encodeURIComponent(nodeAddress);
+      const url = `${API_BASE_URL}/networkAsset/airfinder/v2/supertags/${encodedNodeAddress}/cellIdProcessing?enable=${enabled}`;
+      
+      console.log(`Setting cellID processing for ${nodeAddress} to ${enabled}`);
+      console.log(`API URL: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`API Error: ${response.status} ${response.statusText}`);
+        console.error(`Response body: ${errorText}`);
+        throw new Error(`Failed to set cellID processing: ${errorText || response.statusText}`);
+      }
+      
+      console.log(`Successfully set cellID processing for ${nodeAddress} to ${enabled}`);
+    } catch (error) {
+      console.error("Error in setCellIdProcessing:", error);
+      throw error;
+    }
   }
 };

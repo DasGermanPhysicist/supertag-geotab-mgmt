@@ -41,6 +41,8 @@ export function useTableState({
   onPairGeotab, 
   onUnpairGeotab, 
   onSetHydrophobic,
+  onGetCellIdProcessing,
+  onSetCellIdProcessing,
   SUPERTAG_REGISTRATION_TOKEN
 }) {
   // Column state
