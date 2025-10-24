@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import { useTagEventHistory } from '../../hooks/useTagEventHistory';
 import { useAuth } from '../../hooks/useAuth';
 import { getMessageTypeName } from '../../constants/messageTypes';
-import { formatDateForAPI } from '../../utils/dateUtils';
+import { formatDateForAPI, formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
 import { apiService } from '../../services/api';
 
 // Import split components
@@ -35,7 +35,7 @@ export function TagEventHistoryPage() {
   const columnSelectorRef = useRef<HTMLDivElement>(null);
   
   // Use lastEventTime as default end time if available
-  const now = tag.lastEventTime ? new Date(tag.lastEventTime) : new Date();
+  const now = tag.lastEventTime ? new Date(normalizeIsoAssumeUtc(tag.lastEventTime)) : new Date();
   const oneDayAgo = new Date(now);
   oneDayAgo.setDate(now.getDate() - 1);
   
@@ -712,7 +712,7 @@ export function TagEventHistoryPage() {
     
     // Format date fields if they appear to be ISO dates
     if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
-      return new Date(value).toLocaleString();
+      return formatTimestampForDisplay(value);
     }
     
     return String(value);
@@ -746,7 +746,7 @@ export function TagEventHistoryPage() {
       // Start with a flat object for basic properties
       const flatEvent: Record<string, any> = {
         uuid: event.uuid,
-        time: new Date(event.time).toLocaleString(),
+        time: formatTimestampForDisplay(event.time),
         type: event.type
       };
       

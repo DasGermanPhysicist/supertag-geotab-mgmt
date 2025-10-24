@@ -4,6 +4,7 @@ import { SuperTag, ColumnVisibility } from '../types';
 import { BulkOperationsModal } from './BulkOperationsModal';
 import { HydrophobicBulkModal } from './HydrophobicBulkModal';
 import { usePersistedState } from '../hooks/usePersistedState';
+import { formatTimestampForDisplay } from '../utils/dateUtils';
 
 const MANDATORY_COLUMNS = ['nodeName', 'geotabSerialNumber', 'macAddress'];
 const SUPERTAG_REGISTRATION_TOKEN = 'D29B3BE8F2CC9A1A7051';
@@ -399,24 +400,9 @@ export function DataTable({ data, auth, onDataChange, onPairGeotab, onUnpairGeot
     
     if (column === 'lastEventTime' && value) {
       try {
-        // Properly handle UTC date conversion
-        // First ensure we're working with a valid date string
+        // Use the centralized timestamp formatting function
         const isoString = typeof value === 'string' ? value : String(value);
-        
-        // Create a date object - JavaScript will automatically convert to local timezone
-        // when displaying with the appropriate methods
-        const date = new Date(isoString);
-        
-        // Format the date in the local timezone
-        return new Intl.DateTimeFormat(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-        }).format(date);
+        return formatTimestampForDisplay(isoString);
       } catch (e) {
         return value;
       }

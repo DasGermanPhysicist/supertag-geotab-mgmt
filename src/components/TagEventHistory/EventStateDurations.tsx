@@ -7,7 +7,7 @@ import { Tag } from 'primereact/tag';
 import { Panel } from 'primereact/panel';
 import { Clock, PieChart, BarChart2, Filter } from 'lucide-react';
 import { TagEvent } from '../../types';
-import { formatDuration } from '../../utils/dateUtils';
+import { formatDuration, formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
 
 interface EventStateDurationsProps {
   events: TagEvent[];
@@ -204,7 +204,7 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
     
     // Sort events by time for accurate duration calculation
     const sortedEvents = [...events].sort(
-      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      (a, b) => new Date(normalizeIsoAssumeUtc(a.time)).getTime() - new Date(normalizeIsoAssumeUtc(b.time)).getTime()
     );
     
     // Helper function to get a value from an event using the path
@@ -235,33 +235,33 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
     // Start and end times from the date range or fall back to events
     const startTime = dateRange[0] 
       ? dateRange[0].getTime()
-      : new Date(sortedEvents[0].time).getTime();
+      : new Date(normalizeIsoAssumeUtc(sortedEvents[0].time)).getTime();
       
     const endTime = dateRange[1] 
       ? dateRange[1].getTime() 
-      : new Date(sortedEvents[sortedEvents.length - 1].time).getTime();
+      : new Date(normalizeIsoAssumeUtc(sortedEvents[sortedEvents.length - 1].time)).getTime();
     
     // Total duration in ms of the analyzed period
     const totalDuration = endTime - startTime;
     
     // Initialize with first event's state
     let currentState = getValueFromPath(sortedEvents[0], selectedParameter.path);
-    let currentStateStartTime = new Date(sortedEvents[0].time).getTime();
+    let currentStateStartTime = new Date(normalizeIsoAssumeUtc(sortedEvents[0].time)).getTime();
     
     // Initialize the first state's tracking
     if (!stateDurations.has(currentState)) {
       stateDurations.set(currentState, {
         totalMs: 0,
         occurrences: 1,
-        firstSeen: new Date(sortedEvents[0].time),
-        lastSeen: new Date(sortedEvents[0].time)
+        firstSeen: new Date(normalizeIsoAssumeUtc(sortedEvents[0].time)),
+        lastSeen: new Date(normalizeIsoAssumeUtc(sortedEvents[0].time))
       });
     }
     
     // Process all events
     for (let i = 1; i < sortedEvents.length; i++) {
       const event = sortedEvents[i];
-      const eventTime = new Date(event.time).getTime();
+      const eventTime = new Date(normalizeIsoAssumeUtc(event.time)).getTime();
       const eventState = getValueFromPath(event, selectedParameter.path);
       
       // If state changed, update durations
@@ -276,7 +276,7 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
             totalMs: prevStateStats.totalMs + stateDuration,
             occurrences: prevStateStats.occurrences,
             firstSeen: prevStateStats.firstSeen,
-            lastSeen: new Date(event.time)
+            lastSeen: new Date(normalizeIsoAssumeUtc(event.time))
           });
         }
         
@@ -285,8 +285,8 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
           stateDurations.set(eventState, {
             totalMs: 0,
             occurrences: 1,
-            firstSeen: new Date(event.time),
-            lastSeen: new Date(event.time)
+            firstSeen: new Date(normalizeIsoAssumeUtc(event.time)),
+            lastSeen: new Date(normalizeIsoAssumeUtc(event.time))
           });
         } else {
           // Update occurrences for existing state
@@ -294,7 +294,7 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
           stateDurations.set(eventState, {
             ...stats,
             occurrences: stats.occurrences + 1,
-            lastSeen: new Date(event.time)
+            lastSeen: new Date(normalizeIsoAssumeUtc(event.time))
           });
         }
         
@@ -690,13 +690,13 @@ export function EventStateDurations({ events, dateRange }: EventStateDurationsPr
             />
             <Column
               header="First Seen"
-              body={(rowData) => rowData.firstSeen.toLocaleString()}
+              body={(rowData) => formatTimestampForDisplay(rowData.firstSeen)}
               sortable
               sortField="firstSeen"
             />
             <Column
               header="Last Seen"
-              body={(rowData) => rowData.lastSeen.toLocaleString()}
+              body={(rowData) => formatTimestampForDisplay(rowData.lastSeen)}
               sortable
               sortField="lastSeen"
             />

@@ -6,6 +6,7 @@ import { Button } from 'primereact/button';
 import { Tag } from 'primereact/tag';
 import { ToggleButton } from 'primereact/togglebutton';
 import { getMessageTypeName } from '../../constants/messageTypes';
+import { formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
 
 // Import Leaflet CSS - we need to include this for the map to render properly
 import 'leaflet/dist/leaflet.css';
@@ -60,7 +61,7 @@ function useLocationData(events: any[]) {
         if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
         
         // Format the timestamp for display
-        const formattedTime = new Date(event.time).toLocaleString();
+        const formattedTime = formatTimestampForDisplay(event.time);
         
         // Determine location type based on msgType or other properties
         let locationType: 'wifi' | 'gps' | 'cellId' | 'lb-only' | 'unknown' = 'unknown';
@@ -206,7 +207,7 @@ function useLocationData(events: any[]) {
     });
     
     // Sort by time to ensure proper path drawing
-    return locationPoints.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    return locationPoints.sort((a, b) => new Date(normalizeIsoAssumeUtc(a.time)).getTime() - new Date(normalizeIsoAssumeUtc(b.time)).getTime());
   }, [events]);
 }
 

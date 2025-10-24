@@ -9,6 +9,7 @@ import { Calendar } from 'primereact/calendar';
 import { MultiSelect } from 'primereact/multiselect';
 import { TagEvent } from '../../types';
 import { getMessageTypeName } from '../../constants/messageTypes';
+import { formatTimestampForDisplay } from '../../utils/dateUtils';
 
 interface EventDataTableProps {
   events: TagEvent[];
@@ -131,10 +132,12 @@ export function EventDataTable({
     }
   };
 
-  // Create a unique identifier for each event that combines uuid with timestamp
-  // This ensures even if we have the same UUID from different result sets, we can distinguish them
-  const getRowKey = (event: TagEvent) => {
-    return `${event.uuid}_${event.time}`;
+  // Create a unique identifier for each event that combines uuid with timestamp and index
+  // This ensures even if we have duplicate events, each row has a unique key
+  const getRowKey = (event: TagEvent, index?: number) => {
+    // Use a combination of uuid, timestamp, and array index to ensure uniqueness
+    const eventIndex = index !== undefined ? index : events.findIndex(e => e === event);
+    return `${event.uuid}_${event.time}_${eventIndex}`;
   };
   
   return (
@@ -210,7 +213,7 @@ export function EventDataTable({
             </div>
           }
           sortable
-          body={(rowData) => new Date(rowData.time).toLocaleString()}
+          body={(rowData) => formatTimestampForDisplay(rowData.time)}
           style={{ width: '180px' }}
           filter
           filterPlaceholder="Search time"
