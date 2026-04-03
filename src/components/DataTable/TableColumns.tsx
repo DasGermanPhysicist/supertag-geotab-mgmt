@@ -247,7 +247,7 @@ export function TableColumns({
                                 setColumnVisibility({ ...columnVisibility, [column]: !isVisible });
                               }
                             }}
-                            className={`relative flex-shrink-0 h-5 w-9 rounded-full transition-colors ${
+                            className={`relative flex-shrink-0 h-4 w-7 rounded-full transition-colors ${
                               isMandatory
                                 ? 'bg-blue-400 cursor-not-allowed'
                                 : isVisible
@@ -256,12 +256,12 @@ export function TableColumns({
                             }`}
                           >
                             <span
-                              className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                                isVisible || isMandatory ? 'translate-x-4' : 'translate-x-0'
+                              className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                                isVisible || isMandatory ? 'translate-x-3' : 'translate-x-0'
                               }`}
                             />
                           </button>
-                          <span className={`text-sm flex-1 truncate ${
+                          <span className={`text-sm flex-1 break-words ${
                             isMandatory ? 'font-medium text-blue-700' : isVisible ? 'text-gray-900' : 'text-gray-500'
                           }`}>
                             {column === 'formattedAddress' ? 'Full Address' : formatColumnName(column)}
