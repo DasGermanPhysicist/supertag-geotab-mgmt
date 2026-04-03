@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Check, Info, Filter } from 'lucide-react';
 
 interface TableActionsProps {
@@ -8,7 +7,6 @@ interface TableActionsProps {
   showSuperTagsOnly: boolean;
   setFilterText: (text: string) => void;
   setShowSuperTagsOnly: (show: boolean) => void;
-  // New props for column filters
   columnFilters?: Record<string, string>;
   clearColumnFilters?: () => void;
   hasActiveColumnFilters?: boolean;
@@ -25,80 +23,71 @@ export function TableActions({
   clearColumnFilters = () => {},
   hasActiveColumnFilters = false
 }: TableActionsProps) {
-  // Get active column filter names for display
   const activeFilterNames = Object.keys(columnFilters);
+  const hasGlobalFilters = filterText || showSuperTagsOnly;
+
+  if (!actionStatus && !hasGlobalFilters && !hasActiveColumnFilters) return null;
 
   return (
-    <>
-      {/* Status messages */}
+    <div className="space-y-0">
+      {/* Status toast */}
       {actionStatus && (
-        <div className={`px-4 py-3 border-t ${
-          actionStatus.type === 'success' ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'
+        <div className={`mx-3 mt-2 px-3 py-2 rounded-lg flex items-center gap-2 text-xs ${
+          actionStatus.type === 'success'
+            ? 'bg-green-50 border border-green-200 text-green-700'
+            : 'bg-red-50 border border-red-200 text-red-700'
         }`}>
-          <div className="flex items-center">
-            {actionStatus.type === 'success' ? (
-              <Check className="h-4 w-4 mr-2 flex-shrink-0" />
-            ) : (
-              <Info className="h-4 w-4 mr-2 flex-shrink-0" />
-            )}
-            <p className="text-sm">{actionStatus.message}</p>
-            <button 
-              onClick={() => setActionStatus(null)}
-              className="ml-auto text-gray-400 hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-      
-      {/* Filter information - Global filters */}
-      {(filterText || showSuperTagsOnly) && (
-        <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter className="h-3 w-3" />
-            <span>
-              Global Filters: 
-              {filterText && <span className="ml-1 font-medium">Search "{filterText}"</span>}
-              {showSuperTagsOnly && <span className="ml-1 font-medium">SuperTags only</span>}
-            </span>
-          </div>
-          <button 
-            onClick={() => {
-              setFilterText('');
-              setShowSuperTagsOnly(false);
-            }}
-            className="text-blue-600 hover:text-blue-800"
-          >
-            Clear global filters
+          {actionStatus.type === 'success' ? (
+            <Check className="h-3.5 w-3.5 flex-shrink-0" />
+          ) : (
+            <Info className="h-3.5 w-3.5 flex-shrink-0" />
+          )}
+          <span className="flex-1">{actionStatus.message}</span>
+          <button onClick={() => setActionStatus(null)} className="opacity-60 hover:opacity-100">
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Column Filters Information */}
-      {hasActiveColumnFilters && (
-        <div className="px-4 py-2 border-t border-gray-100 bg-blue-50 text-xs text-blue-700 flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
-            <Filter className="h-3 w-3 flex-shrink-0" />
-            <span className="flex-shrink-0">
-              Column Filters: 
+      {/* Active filter pills */}
+      {(hasGlobalFilters || hasActiveColumnFilters) && (
+        <div className="mx-3 mt-2 flex flex-wrap items-center gap-1.5">
+          <Filter className="h-3 w-3 text-gray-400 mr-0.5" />
+
+          {filterText && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600">
+              Search: "{filterText}"
+              <button onClick={() => setFilterText('')} className="hover:text-gray-900"><X className="h-3 w-3" /></button>
             </span>
-            <div className="flex flex-wrap gap-1 max-w-[80%]">
-              {activeFilterNames.map(column => (
-                <span key={column} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100">
-                  {column}: "{columnFilters[column]}"
-                </span>
-              ))}
-            </div>
-          </div>
-          <button 
-            onClick={clearColumnFilters}
-            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
-          >
-            Clear column filters
-          </button>
+          )}
+
+          {showSuperTagsOnly && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">
+              SuperTags only
+              <button onClick={() => setShowSuperTagsOnly(false)} className="hover:text-blue-900"><X className="h-3 w-3" /></button>
+            </span>
+          )}
+
+          {activeFilterNames.map(column => (
+            <span key={column} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-100 text-indigo-700">
+              {column}: "{columnFilters[column]}"
+            </span>
+          ))}
+
+          {(hasGlobalFilters || hasActiveColumnFilters) && (
+            <button
+              onClick={() => {
+                setFilterText('');
+                setShowSuperTagsOnly(false);
+                if (clearColumnFilters) clearColumnFilters();
+              }}
+              className="text-[11px] text-gray-500 hover:text-gray-700 underline ml-1"
+            >
+              Clear all
+            </button>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }

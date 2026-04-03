@@ -1,45 +1,49 @@
 import { useState, useRef, useCallback } from 'react';
-import { Upload, Download, X, AlertCircle, CheckCircle2, FileText, Loader2, CheckSquare } from 'lucide-react';
+import { Upload, Download, X, AlertCircle, CheckCircle2, FileText, Loader2, Cpu, CheckSquare } from 'lucide-react';
 import { sendNotification } from '../services/notifications';
 import { apiService } from '../services/api';
 import { SuperTag } from '../types';
 
-interface BulkOperationsModalProps {
+interface CellIdBulkModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => void;
   auth: { token?: string; username?: string };
-  mode: 'pair' | 'unpair';
+  value: boolean;
+  onValueChange: (value: boolean) => void;
   selectedRows?: SuperTag[];
 }
 
 interface OperationResult {
-  macAddress: string;
+  nodeAddress: string;
   success: boolean;
   error?: string;
 }
 
-export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, selectedRows = [] }: BulkOperationsModalProps) {
+export function CellIdBulkModal({
+  isOpen,
+  onClose,
+  onComplete,
+  auth,
+  value,
+  onValueChange,
+  selectedRows = []
+}: CellIdBulkModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [results, setResults] = useState<OperationResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [sourceMode, setSourceMode] = useState<'selection' | 'csv'>(
-    mode === 'unpair' && selectedRows.length > 0 ? 'selection' : 'csv'
-  );
+  const [sourceMode, setSourceMode] = useState<'selection' | 'csv'>(selectedRows.length > 0 ? 'selection' : 'csv');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadSampleCsv = () => {
-    const csvContent = mode === 'pair' 
-      ? 'macAddress,geotabSerialNumber\nF0:0E:98:34:6F:16,GT123456\nF0:0E:98:34:6F:17,GT123457'
-      : 'macAddress\nF0:0E:98:34:6F:16\nF0:0E:98:34:6F:17';
-
+    const csvContent = 'nodeAddress\n$501$0-0-0000d6a-ebca39b37\n$501$0-0-0000d6a-ebca39b38';
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = mode === 'pair' ? 'sample-bulk-pair.csv' : 'sample-bulk-unpair.csv';
+    a.download = 'sample-cellid-processing.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -49,7 +53,6 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
     } else if (e.type === 'dragleave') {
@@ -61,56 +64,49 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-        setFile(file);
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile.type === 'text/csv' || droppedFile.name.endsWith('.csv')) {
+        setFile(droppedFile);
       }
     }
   }, []);
 
-  const processEntries = async (entries: { macAddress: string; geotabSerialNumber?: string }[]) => {
-    if (!auth.token || entries.length === 0) return;
+  const processNodes = async (nodeAddresses: string[]) => {
+    if (!auth.token || nodeAddresses.length === 0) return;
 
     setIsProcessing(true);
     setResults([]);
-    setProgress({ current: 0, total: entries.length });
+    setProgress({ current: 0, total: nodeAddresses.length });
 
     const opResults: OperationResult[] = [];
 
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
+    for (let i = 0; i < nodeAddresses.length; i++) {
+      const nodeAddress = nodeAddresses[i];
       try {
-        if (mode === 'pair') {
-          await apiService.pairGeotab(entry.macAddress, entry.geotabSerialNumber!, auth.token!);
-          if (auth.username) {
-            await sendNotification({
-              email: auth.username,
-              macAddress: entry.macAddress,
-              geotabSerialNumber: entry.geotabSerialNumber!,
-              type: 'pair'
-            });
-          }
-        } else {
-          await apiService.unpairGeotab(entry.macAddress, auth.token!);
-          if (auth.username) {
-            await sendNotification({
-              email: auth.username,
-              macAddress: entry.macAddress,
-              type: 'unpair'
-            });
-          }
+        if (!nodeAddress) throw new Error('Node address is missing');
+
+        await apiService.setCellIdProcessing(nodeAddress, value, auth.token!);
+
+        if (auth.username) {
+          await sendNotification({
+            email: auth.username,
+            macAddress: nodeAddress,
+            type: 'cellIdProcessing',
+            cellIdProcessingValue: value
+          });
         }
-        opResults.push({ macAddress: entry.macAddress, success: true });
+
+        opResults.push({ nodeAddress, success: true });
       } catch (error) {
         opResults.push({
-          macAddress: entry.macAddress,
+          nodeAddress,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
       }
-      setProgress({ current: i + 1, total: entries.length });
+
+      setProgress({ current: i + 1, total: nodeAddresses.length });
       setResults([...opResults]);
     }
 
@@ -119,10 +115,10 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
   };
 
   const processSelectedRows = async () => {
-    const entries = selectedRows
-      .filter(row => row.macAddress)
-      .map(row => ({ macAddress: row.macAddress as string }));
-    await processEntries(entries);
+    const nodeAddresses = selectedRows
+      .map(row => row.nodeAddress)
+      .filter((addr): addr is string => !!addr);
+    await processNodes(nodeAddresses);
   };
 
   const processFile = async () => {
@@ -135,12 +131,8 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
       const lines = text.split('\n').filter(line => line.trim());
       const headers = lines[0].split(',').map(h => h.trim());
 
-      if (mode === 'pair' && (!headers.includes('macAddress') || !headers.includes('geotabSerialNumber'))) {
-        alert('CSV must have macAddress and geotabSerialNumber columns');
-        return;
-      }
-      if (mode === 'unpair' && !headers.includes('macAddress')) {
-        alert('CSV must have a macAddress column');
+      if (!headers.includes('nodeAddress')) {
+        alert('CSV must have a nodeAddress column');
         return;
       }
 
@@ -149,10 +141,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
         return headers.reduce<Record<string, string>>((obj, header, i) => ({ ...obj, [header]: values[i] }), {});
       });
 
-      await processEntries(data.map(row => ({
-        macAddress: row.macAddress,
-        geotabSerialNumber: row.geotabSerialNumber
-      })));
+      await processNodes(data.map(row => row.nodeAddress));
     };
 
     reader.readAsText(file);
@@ -162,14 +151,13 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
 
   const successCount = results.filter(r => r.success).length;
   const failureCount = results.filter(r => !r.success).length;
-  const canUseSelection = mode === 'unpair';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center py-4 px-6 border-b">
           <h3 className="text-lg font-semibold text-gray-900">
-            Bulk {mode === 'pair' ? 'Pair' : 'Unpair'} Geotab Serial Numbers
+            Bulk Set CellID Processing
           </h3>
           <button
             onClick={onClose}
@@ -178,44 +166,68 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
             <X className="h-5 w-5" />
           </button>
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Value toggle */}
+          <div className="flex items-center justify-center space-x-4 bg-gray-50 p-4 rounded-lg">
+            <button
+              onClick={() => onValueChange(true)}
+              className={`py-2 px-4 rounded flex items-center space-x-2 ${
+                value
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              <Cpu className="h-5 w-5" />
+              <span>Enable CellID</span>
+            </button>
+            <button
+              onClick={() => onValueChange(false)}
+              className={`py-2 px-4 rounded flex items-center space-x-2 ${
+                !value
+                  ? 'bg-purple-600 text-white hover:bg-purple-700'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              <X className="h-5 w-5" />
+              <span>Disable CellID</span>
+            </button>
+          </div>
+
           {/* Source mode tabs */}
           {!isProcessing && results.length === 0 && (
             <>
-              {canUseSelection && (
-                <div className="flex border-b border-gray-200">
-                  <button
-                    onClick={() => setSourceMode('selection')}
-                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      sourceMode === 'selection'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <CheckSquare className="h-4 w-4" />
-                    Table Selection
-                    {selectedRows.length > 0 && (
-                      <span className="ml-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold px-1">
-                        {selectedRows.length}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setSourceMode('csv')}
-                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                      sourceMode === 'csv'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    <Upload className="h-4 w-4" />
-                    CSV Upload
-                  </button>
-                </div>
-              )}
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setSourceMode('selection')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    sourceMode === 'selection'
+                      ? 'border-purple-600 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  Table Selection
+                  {selectedRows.length > 0 && (
+                    <span className="ml-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-purple-100 text-purple-700 text-xs font-bold px-1">
+                      {selectedRows.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setSourceMode('csv')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    sourceMode === 'csv'
+                      ? 'border-purple-600 text-purple-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Upload className="h-4 w-4" />
+                  CSV Upload
+                </button>
+              </div>
 
-              {canUseSelection && sourceMode === 'selection' ? (
+              {sourceMode === 'selection' ? (
                 <div>
                   {selectedRows.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
@@ -226,20 +238,20 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
                   ) : (
                     <div className="space-y-3">
                       <div className="max-h-40 overflow-y-auto border rounded-lg divide-y divide-gray-100">
-                        {selectedRows.filter(r => r.macAddress).map((row, i) => (
+                        {selectedRows.filter(r => r.nodeAddress).map((row, i) => (
                           <div key={i} className="px-3 py-1.5 text-xs font-mono text-gray-600">
-                            {row.macAddress} {row.nodeName && <span className="text-gray-400 ml-1">({row.nodeName})</span>}
+                            {row.nodeAddress} {row.nodeName && <span className="text-gray-400 ml-1">({row.nodeName})</span>}
                           </div>
                         ))}
                       </div>
                       <p className="text-xs text-gray-500">
-                        {selectedRows.filter(r => r.macAddress).length} device(s) will be unpaired.
+                        {selectedRows.filter(r => r.nodeAddress).length} device(s) with node address will be processed.
                       </p>
                       <button
                         onClick={processSelectedRows}
-                        className="w-full btn btn-danger"
+                        className="w-full btn btn-primary"
                       >
-                        Unpair {selectedRows.filter(r => r.macAddress).length} Devices
+                        Process {selectedRows.filter(r => r.nodeAddress).length} Devices
                       </button>
                     </div>
                   )}
@@ -247,21 +259,17 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-start">
-                    <div className="bg-blue-50 text-blue-800 rounded-full p-2 mr-3 flex-shrink-0">
+                    <div className="bg-purple-50 text-purple-800 rounded-full p-2 mr-3 flex-shrink-0">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
                       <p className="text-sm text-gray-600 mb-2">
-                        Upload a CSV file with columns:
-                        {mode === 'pair' ? (
-                          <span className="font-mono block mt-1 bg-gray-50 p-1 rounded text-xs">macAddress, geotabSerialNumber</span>
-                        ) : (
-                          <span className="font-mono block mt-1 bg-gray-50 p-1 rounded text-xs">macAddress</span>
-                        )}
+                        Upload a CSV with column:
+                        <span className="font-mono block mt-1 bg-gray-50 p-1 rounded text-xs">nodeAddress</span>
                       </p>
                       <button
                         onClick={downloadSampleCsv}
-                        className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
+                        className="text-purple-600 hover:text-purple-700 text-sm flex items-center gap-1"
                       >
                         <Download className="h-4 w-4" />
                         Download sample CSV
@@ -270,9 +278,9 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
                   </div>
 
                   {!file ? (
-                    <div 
+                    <div
                       className={`border-2 border-dashed rounded-lg p-8 text-center ${
-                        dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                        dragActive ? 'border-purple-500 bg-purple-50' : 'border-gray-300'
                       }`}
                       onDragEnter={handleDrag}
                       onDragOver={handleDrag}
@@ -329,13 +337,13 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
                 <span>{progress.current} of {progress.total}</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-blue-600 transition-all duration-200"
+                <div
+                  className="h-full bg-purple-600 transition-all duration-200"
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 />
               </div>
               <div className="text-center">
-                <Loader2 className="h-5 w-5 mx-auto animate-spin text-blue-600 mt-2" />
+                <Loader2 className="h-5 w-5 mx-auto animate-spin text-purple-600 mt-2" />
               </div>
             </div>
           )}
@@ -357,7 +365,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
                   )}
                 </div>
               </div>
-              
+
               <div className="max-h-60 overflow-y-auto border rounded-lg divide-y divide-gray-200">
                 {results.map((result, index) => (
                   <div
@@ -371,7 +379,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
                     ) : (
                       <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     )}
-                    <span className="font-mono">{result.macAddress}</span>
+                    <span className="font-mono">{result.nodeAddress}</span>
                     {result.error && (
                       <span className="text-xs ml-auto text-red-500 truncate max-w-[200px]" title={result.error}>
                         {result.error}
@@ -383,7 +391,7 @@ export function BulkOperationsModal({ isOpen, onClose, onComplete, auth, mode, s
             </div>
           )}
         </div>
-        
+
         <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
           <button
             onClick={onClose}

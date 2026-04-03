@@ -1,25 +1,24 @@
-import React, { useState } from 'react';
-import { Building2, LogOut, Menu, X, Settings, ChevronDown, LayoutDashboard, Map } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Building2, LogOut, Menu, X, LayoutDashboard, Map, Tag, Radio, Cpu, Battery, AlertTriangle, Wifi, MapPin } from 'lucide-react';
+import { usePersistedState } from '../hooks/usePersistedState';
 import { PrimeDataTable } from './DataTable/PrimeDataTable';
 import { SiteSelector } from './SiteSelector';
 import { OrganizationSelector } from './OrganizationSelector';
 import { useOrganizations } from '../hooks/useOrganizations';
 import { useSites } from '../hooks/useSites';
 import { useSuperTags } from '../hooks/useSuperTags';
-import { AuthState, SuperTag } from '../types';
+import { Organization, Site, SuperTag } from '../types';
 import { sendNotification } from '../services/notifications';
 import { apiService } from '../services/api';
-import { TagMapView } from './TagMapView'; // Import the new map component
+import { useAuth } from '../contexts/AuthContext';
+import { TagMapView } from './TagMapView';
 
-interface AuthenticatedAppProps {
-  auth: AuthState;
-  onLogout: () => void;
-}
-
-export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
+export function AuthenticatedApp() {
+  const { auth, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'map'>('table'); // Add view mode state
+  const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
   const [selectedMapTag, setSelectedMapTag] = useState<SuperTag | null>(null);
+  const [geocodingEnabled, setGeocodingEnabled] = usePersistedState<boolean>('geocodingEnabled', false);
 
   const { 
     organizations, 
@@ -41,13 +40,24 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
     error: dataError, 
     loadingProgress, 
     refreshData 
-  } = useSuperTags(auth.token, selectedSite, sites);
+  } = useSuperTags(auth.token, selectedSite, sites, geocodingEnabled);
 
-  const handleOrganizationSelect = async (organization) => {
+  // Summary stats computed from current data
+  const stats = useMemo(() => {
+    if (!data.length) return null;
+    const total = data.length;
+    const paired = data.filter(t => t.geotabSerialNumber).length;
+    const lowBattery = data.filter(t => String(t.batteryStatus) === '0').length;
+    const withLocation = data.filter(t => t.latitude && t.longitude).length;
+    const cellIdDisabled = data.filter(t => t.cellIdProcessingEnabled === false).length;
+    return { total, paired, lowBattery, withLocation, cellIdDisabled };
+  }, [data]);
+
+  const handleOrganizationSelect = async (organization: Organization) => {
     selectOrganization(organization);
   };
 
-  const handleSiteSelect = (site) => {
+  const handleSiteSelect = (site: Site | null) => {
     selectSite(site);
   };
 
@@ -55,15 +65,15 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
     refreshData();
   };
 
-  const handlePairGeotab = async (macAddress, geotabSerialNumber) => {
+  const handlePairGeotab = async (macAddress: string, geotabSerialNumber: string) => {
     try {
       await apiService.pairGeotab(macAddress, geotabSerialNumber, auth.token!);
       
       if (auth.username) {
         await sendNotification({
           email: auth.username,
-          macAddress: macAddress,
-          geotabSerialNumber: geotabSerialNumber,
+          macAddress,
+          geotabSerialNumber,
           type: 'pair'
         });
       }
@@ -71,19 +81,18 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
       refreshData();
       return { success: true };
     } catch (error) {
-      console.error('Error pairing Geotab:', error);
-      return { success: false, error };
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
 
-  const handleUnpairGeotab = async (macAddress) => {
+  const handleUnpairGeotab = async (macAddress: string) => {
     try {
       await apiService.unpairGeotab(macAddress, auth.token!);
       
       if (auth.username) {
         await sendNotification({
           email: auth.username,
-          macAddress: macAddress,
+          macAddress,
           type: 'unpair'
         });
       }
@@ -91,15 +100,12 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
       refreshData();
       return { success: true };
     } catch (error) {
-      console.error('Error unpairing Geotab:', error);
-      return { success: false, error };
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
 
-  const handleSetHydrophobic = async (nodeAddress, value) => {
+  const handleSetHydrophobic = async (nodeAddress: string, value: boolean) => {
     try {
-      console.log(`Attempting to set hydrophobic=${value} for node ${nodeAddress}`);
-      
       if (!nodeAddress) {
         throw new Error("Node address is required");
       }
@@ -118,15 +124,12 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
       refreshData();
       return { success: true };
     } catch (error) {
-      console.error('Error setting hydrophobic property:', error);
-      return { success: false, error };
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
 
-  const handleGetCellIdProcessing = async (nodeAddress) => {
+  const handleGetCellIdProcessing = async (nodeAddress: string) => {
     try {
-      console.log(`Attempting to get cellID processing status for node ${nodeAddress}`);
-      
       if (!nodeAddress) {
         throw new Error("Node address is required");
       }
@@ -134,15 +137,12 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
       const result = await apiService.getCellIdProcessing(nodeAddress, auth.token!);
       return { success: true, data: result };
     } catch (error) {
-      console.error('Error getting cellID processing status:', error);
-      return { success: false, error };
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
 
-  const handleSetCellIdProcessing = async (nodeAddress, enabled) => {
+  const handleSetCellIdProcessing = async (nodeAddress: string, enabled: boolean) => {
     try {
-      console.log(`Attempting to set cellID processing=${enabled} for node ${nodeAddress}`);
-      
       if (!nodeAddress) {
         throw new Error("Node address is required");
       }
@@ -161,101 +161,30 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
       refreshData();
       return { success: true };
     } catch (error) {
-      console.error('Error setting cellID processing:', error);
-      return { success: false, error };
+      return { success: false, error: error instanceof Error ? error : new Error(String(error)) };
     }
   };
 
   const error = orgError || siteError || dataError;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <div className="flex items-center space-x-3">
-            <LayoutDashboard className="h-6 w-6 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900 hidden sm:block">Link Labs Tag Manager</h1>
-            <h1 className="text-xl font-bold text-gray-900 sm:hidden">Link Labs</h1>
-          </div>
-          
-          <div className="flex items-center">
-            <span className="text-sm text-gray-600 mr-3 hidden sm:block">
-              {auth.username}
-            </span>
-            
-            <div className="relative group">
-              <button 
-                className="flex items-center focus:outline-none"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                <div className="hidden sm:flex items-center space-x-1 text-gray-700 hover:text-gray-900">
-                  <Settings className="h-5 w-5" />
-                  <ChevronDown className="h-4 w-4" />
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* ─── Header ─── */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14">
+            {/* Left: Logo + selectors */}
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <Radio className="h-4 w-4 text-white" />
                 </div>
-                <Menu className="h-6 w-6 sm:hidden text-gray-700" />
-              </button>
-              
-              <div className="absolute right-0 w-48 py-2 mt-2 bg-white rounded-md shadow-lg hidden sm:group-hover:block z-10">
-                <a
-                  href="#" 
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onLogout();
-                  }}
-                >
-                  <div className="flex items-center">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    <span>Logout</span>
-                  </div>
-                </a>
+                <span className="text-base font-semibold text-gray-900 hidden lg:block">Link Labs</span>
               </div>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 sm:hidden">
-          <div className="fixed right-0 top-0 h-full w-64 bg-white shadow-lg">
-            <div className="p-4 flex justify-between items-center border-b">
-              <h2 className="text-lg font-medium">Menu</h2>
-              <button onClick={() => setMobileMenuOpen(false)}>
-                <X className="h-6 w-6 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-4 border-b">
-              <p className="text-sm text-gray-600">Signed in as:</p>
-              <p className="font-medium">{auth.username}</p>
-            </div>
-            <div className="p-4">
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onLogout();
-                }}
-                className="w-full flex items-center py-2 text-sm text-gray-700"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Main content */}
-      <main className="flex-1">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="space-y-4 max-w-3xl mb-6 mx-auto">
-            <div className="card">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Organization
-                  </label>
+
+              <div className="hidden sm:flex items-center gap-2 min-w-0">
+                <span className="text-gray-300">|</span>
+                <div className="w-48 lg:w-56">
                   <OrganizationSelector
                     organizations={organizations}
                     selectedOrganization={selectedOrganization}
@@ -263,10 +192,7 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                   />
                 </div>
                 {selectedOrganization && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Site
-                    </label>
+                  <div className="w-44 lg:w-52">
                     <SiteSelector
                       sites={sites}
                       selectedSite={selectedSite}
@@ -276,85 +202,220 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                 )}
               </div>
             </div>
-            
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{error}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {loading ? (
-            <div className="flex flex-col items-center justify-center h-64 space-y-4">
-              <div className="relative h-12 w-12">
-                <div className="absolute top-0 right-0 bottom-0 left-0 border-t-2 border-blue-600 rounded-full animate-spin"></div>
-                <div className="absolute top-0 right-0 bottom-0 left-0 border-2 border-gray-200 rounded-full"></div>
-              </div>
-              {loadingProgress && (
-                <div className="text-gray-600 text-center">
-                  <p>Loading sites: {loadingProgress.current} of {loadingProgress.total}</p>
-                  <div className="w-64 h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                      style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : data.length > 0 ? (
-            <div className="space-y-4">
-              {!selectedSite && (
-                <div className="p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700 rounded-md flex items-center space-x-2">
-                  <Building2 className="h-5 w-5 flex-shrink-0" />
-                  <span className="font-medium">Showing data from all sites</span>
+
+            {/* Right: View toggle + user */}
+            <div className="flex items-center gap-3">
+              {data.length > 0 && (
+                <div className="hidden sm:inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      viewMode === 'table'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                    Table
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                      viewMode === 'map'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    <Map className="h-3.5 w-3.5" />
+                    Map
+                  </button>
                 </div>
               )}
 
-              {/* View mode toggle */}
-              <div className="flex justify-end">
-                <div className="inline-flex rounded-md shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('table')}
-                    className={`
-                      relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-l-lg border 
-                      ${viewMode === 'table' 
-                        ? 'bg-blue-600 text-white border-blue-600 z-10' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                      }
-                    `}
-                  >
-                    <LayoutDashboard className="h-5 w-5 mr-2" />
-                    Table View
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('map')}
-                    className={`
-                      relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg border
-                      ${viewMode === 'map' 
-                        ? 'bg-blue-600 text-white border-blue-600 z-10' 
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                      }
-                    `}
-                  >
-                    <Map className="h-5 w-5 mr-2" />
-                    Map View
-                  </button>
+              {/* Geocoding toggle */}
+              <button
+                onClick={() => setGeocodingEnabled(!geocodingEnabled)}
+                className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  geocodingEnabled
+                    ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                    : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                }`}
+                title={geocodingEnabled ? 'Address geocoding is ON (slower loading)' : 'Address geocoding is OFF (faster loading)'}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">{geocodingEnabled ? 'Addresses ON' : 'Addresses OFF'}</span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-gray-200">
+                <div className="h-7 w-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                  {auth.username?.charAt(0).toUpperCase()}
+                </div>
+                <button
+                  onClick={logout}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+
+              <button
+                className="sm:hidden p-1"
+                onClick={() => setMobileMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* ─── Mobile menu drawer ─── */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMobileMenuOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="absolute right-0 top-0 h-full w-72 bg-white shadow-xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-4 flex justify-between items-center border-b">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-bold">
+                  {auth.username?.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{auth.username}</p>
                 </div>
               </div>
-              
-              {/* Conditionally render table or map based on view mode */}
+              <button onClick={() => setMobileMenuOpen(false)}>
+                <X className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 flex-1">
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Organization</label>
+              <OrganizationSelector
+                organizations={organizations}
+                selectedOrganization={selectedOrganization}
+                onOrganizationSelect={handleOrganizationSelect}
+              />
+              {selectedOrganization && (
+                <>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Site</label>
+                  <SiteSelector
+                    sites={sites}
+                    selectedSite={selectedSite}
+                    onSiteSelect={handleSiteSelect}
+                  />
+                </>
+              )}
+
+              {data.length > 0 && (
+                <>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mt-4">View</label>
+                  <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 w-full">
+                    <button
+                      onClick={() => { setViewMode('table'); setMobileMenuOpen(false); }}
+                      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
+                        viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                      }`}
+                    >
+                      <LayoutDashboard className="h-3.5 w-3.5" /> Table
+                    </button>
+                    <button
+                      onClick={() => { setViewMode('map'); setMobileMenuOpen(false); }}
+                      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-md transition-all ${
+                        viewMode === 'map' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+                      }`}
+                    >
+                      <Map className="h-3.5 w-3.5" /> Map
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mt-4">Options</label>
+              <button
+                onClick={() => setGeocodingEnabled(!geocodingEnabled)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                  geocodingEnabled
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : 'bg-gray-50 text-gray-500 border-gray-200'
+                }`}
+              >
+                <MapPin className="h-4 w-4" />
+                {geocodingEnabled ? 'Addresses ON' : 'Addresses OFF'}
+              </button>
+            </div>
+
+            <div className="p-4 border-t">
+              <button
+                onClick={() => { setMobileMenuOpen(false); logout(); }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Main content ─── */}
+      <main className="flex-1">
+        <div className="max-w-[1600px] mx-auto py-4 px-4 sm:px-6 lg:px-8 space-y-4">
+          {/* Error banner */}
+          {error && (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* All-sites indicator */}
+          {!selectedSite && data.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              <Building2 className="h-4 w-4 flex-shrink-0" />
+              <span className="font-medium">Showing data from all {sites.length} sites</span>
+            </div>
+          )}
+
+          {/* Summary stat cards */}
+          {stats && !loading && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <StatCard icon={<Tag className="h-4 w-4" />} label="Total Tags" value={stats.total} color="blue" />
+              <StatCard icon={<Wifi className="h-4 w-4" />} label="Geotab Paired" value={stats.paired} color="green" />
+              <StatCard icon={<Cpu className="h-4 w-4" />} label="CellID Disabled" value={stats.cellIdDisabled} color={stats.cellIdDisabled > 0 ? 'red' : 'gray'} />
+              <StatCard icon={<Battery className="h-4 w-4" />} label="Low Battery" value={stats.lowBattery} color={stats.lowBattery > 0 ? 'red' : 'gray'} />
+              <StatCard icon={<Map className="h-4 w-4" />} label="With Location" value={stats.withLocation} color="purple" />
+            </div>
+          )}
+
+          {/* Loading state */}
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 space-y-4">
+              <div className="relative h-10 w-10">
+                <div className="absolute inset-0 border-t-2 border-blue-600 rounded-full animate-spin" />
+                <div className="absolute inset-0 border-2 border-gray-200 rounded-full" />
+              </div>
+              {loadingProgress ? (
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-gray-600">
+                    Loading site {loadingProgress.current} of {loadingProgress.total}
+                  </p>
+                  <div className="w-56 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                      style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Loading tags...</p>
+              )}
+            </div>
+          ) : data.length > 0 ? (
+            <>
               {viewMode === 'table' ? (
                 <PrimeDataTable 
                   data={data} 
@@ -374,33 +435,57 @@ export function AuthenticatedApp({ auth, onLogout }: AuthenticatedAppProps) {
                   loading={loading}
                 />
               )}
-            </div>
+            </>
           ) : (
-            <div className="text-center py-12">
-              <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 max-w-3xl mx-auto">
-                <div className="flex flex-col items-center">
-                  <Building2 className="h-16 w-16 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900">No data to display</h3>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {selectedOrganization 
-                      ? "Please select a site to view its data"
-                      : "Please select an organization to begin"}
-                  </p>
+            <div className="flex flex-col items-center justify-center py-24">
+              <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-10 max-w-md text-center">
+                <div className="h-14 w-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <Building2 className="h-7 w-7 text-gray-400" />
                 </div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {selectedOrganization ? 'No tags found' : 'Get started'}
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {selectedOrganization
+                    ? 'Select a different site or check your filters'
+                    : 'Select an organization above to view tag data'}
+                </p>
               </div>
             </div>
           )}
         </div>
       </main>
-      
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-auto">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-gray-500">
-            &copy; {new Date().getFullYear()} Link Labs. All rights reserved.
+
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-gray-200 bg-white mt-auto">
+        <div className="max-w-[1600px] mx-auto py-3 px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-xs text-gray-400">
+            &copy; {new Date().getFullYear()} Link Labs &middot; Tag Manager
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// ─── Stat Card Component ───
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
+    green: 'bg-green-50 text-green-600 border-green-100',
+    red: 'bg-red-50 text-red-600 border-red-100',
+    purple: 'bg-purple-50 text-purple-600 border-purple-100',
+    gray: 'bg-gray-50 text-gray-500 border-gray-100',
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 ${colorMap[color] ?? colorMap.gray}`}>
+      <div className="flex items-center gap-2 mb-1 opacity-80">
+        {icon}
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <p className="text-2xl font-bold tracking-tight">{value.toLocaleString()}</p>
     </div>
   );
 }

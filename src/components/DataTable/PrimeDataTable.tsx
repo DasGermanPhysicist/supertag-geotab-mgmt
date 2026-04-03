@@ -5,20 +5,18 @@ import { Button } from 'primereact/button';
 import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Calendar } from 'primereact/calendar';
-import { Dialog } from 'primereact/dialog';
 import { Toast } from 'primereact/toast';
-import { Toolbar } from 'primereact/toolbar';
 import { useNavigate } from 'react-router-dom';
-import { History, Plus, Trash2, Droplets, Check, GripVertical, Cpu } from 'lucide-react';
+import { History, Plus, Trash2, Droplets, GripVertical, Cpu } from 'lucide-react';
 
 import { SuperTag } from '../../types';
 import { BulkOperationsModal } from '../BulkOperationsModal';
 import { HydrophobicBulkModal } from '../HydrophobicBulkModal';
+import { CellIdBulkModal } from '../CellIdBulkModal';
 import { useTableState } from './hooks/useTableState';
 import { TableFilters } from './TableFilters';
 import { TableActions } from './TableActions';
 import { TableColumns } from './TableColumns';
-import { TableRows } from './TableRows';
 import { TableFooter } from './TableFooter';
 import { GeotabModal } from './modals/GeotabModal';
 import { HydrophobicModal } from './modals/HydrophobicModal';
@@ -160,7 +158,7 @@ export function PrimeDataTable({
 }: PrimeDataTableProps) {
   const navigate = useNavigate();
   const toast = useRef<Toast>(null);
-  const dt = useRef<DataTable<SuperTag[]>>(null);
+  const dt = useRef<DataTable<any>>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   
   // Load table state using custom hook
@@ -344,8 +342,10 @@ export function PrimeDataTable({
           setShowColumnSelector={actions.setShowColumnSelector}
           setShowBulkModal={actions.setShowBulkModal}
           setShowHydrophobicBulkModal={actions.setShowHydrophobicBulkModal}
+          setShowCellIdBulkModal={actions.setShowCellIdBulkModal}
           setBulkMode={actions.setBulkMode}
           setHydrophobicBulkValue={actions.setHydrophobicBulkValue}
+          setCellIdBulkValue={actions.setCellIdBulkValue}
           selectedRow={state.selectedRow}
           setShowGeotabModal={actions.setShowGeotabModal}
           handleUnpairGeotab={actions.handleUnpairGeotab}
@@ -354,6 +354,8 @@ export function PrimeDataTable({
           columnFilters={state.columnFilters}
           showColumnFilterModal={columnFilterModalVisible}
           setShowColumnFilterModal={setColumnFilterModalVisible}
+          selectedRows={state.selectedRows}
+          setSelectedRows={actions.setSelectedRows}
         />
         
         {/* Status and Filter Indicators */}
@@ -406,12 +408,19 @@ export function PrimeDataTable({
         scrollable
         scrollHeight="flex"
         className="p-datatable-sm"
-        onRowClick={(e) => actions.setSelectedRow(e.data)}
-        selectionMode="single"
-        selection={state.selectedRow}
+        onRowClick={(e) => actions.setSelectedRow(e.data as SuperTag)}
+        selection={state.selectedRows}
+        onSelectionChange={(e) => actions.setSelectedRows(e.value as SuperTag[])}
         reorderableColumns
       >
-        {/* Actions column - moved to leftmost position */}
+        {/* Checkbox selection column */}
+        <Column
+          selectionMode="multiple"
+          headerStyle={{ width: '3rem' }}
+          frozen
+        />
+
+        {/* Actions column */}
         <Column 
           body={actionBodyTemplate} 
           exportable={false} 
@@ -613,6 +622,7 @@ export function PrimeDataTable({
         onComplete={onDataChange}
         auth={auth}
         mode={state.bulkMode}
+        selectedRows={state.selectedRows}
       />
 
       <HydrophobicBulkModal
@@ -622,6 +632,17 @@ export function PrimeDataTable({
         auth={auth}
         value={state.hydrophobicBulkValue}
         onValueChange={actions.setHydrophobicBulkValue}
+        selectedRows={state.selectedRows}
+      />
+
+      <CellIdBulkModal
+        isOpen={modals.showCellIdBulkModal}
+        onClose={() => actions.setShowCellIdBulkModal(false)}
+        onComplete={onDataChange}
+        auth={auth}
+        value={state.cellIdBulkValue}
+        onValueChange={actions.setCellIdBulkValue}
+        selectedRows={state.selectedRows}
       />
     </div>
   );

@@ -4,11 +4,11 @@ export async function sendNotification(data: {
   email: string;
   macAddress: string;
   geotabSerialNumber?: string;
-  type: 'pair' | 'unpair' | 'hydrophobic';
+  type: 'pair' | 'unpair' | 'hydrophobic' | 'cellIdProcessing';
   hydrophobicValue?: boolean;
+  cellIdProcessingValue?: boolean;
 }) {
   try {
-    console.log("Sending notification:", data);
     const response = await fetch(NOTIFICATION_API, {
       method: 'POST',
       headers: {

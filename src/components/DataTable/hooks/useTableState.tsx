@@ -62,6 +62,7 @@ export function useTableState({
 
   // UI state
   const [selectedRow, setSelectedRow] = useState<SuperTag | null>(null);
+  const [selectedRows, setSelectedRows] = useState<SuperTag[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionStatus, setActionStatus] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
@@ -71,17 +72,20 @@ export function useTableState({
   const [showHydrophobicModal, setShowHydrophobicModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showHydrophobicBulkModal, setShowHydrophobicBulkModal] = useState(false);
+  const [showCellIdBulkModal, setShowCellIdBulkModal] = useState(false);
 
   // Form values
   const [bulkMode, setBulkMode] = useState<'pair' | 'unpair'>('pair');
   const [hydrophobicBulkValue, setHydrophobicBulkValue] = useState<boolean>(true);
+  const [cellIdBulkValue, setCellIdBulkValue] = useState<boolean>(true);
   const [newGeotabSerial, setNewGeotabSerial] = useState('');
 
   // Handle column initialization
   useEffect(() => {
     if (data.length > 0) {
       // Collect all column keys from the data, including address fields
-      const allColumns = new Set([...MANDATORY_COLUMNS]);
+      // Always include known address columns so they appear in the selector even when geocoding is off
+      const allColumns = new Set([...MANDATORY_COLUMNS, ...ADDRESS_COLUMNS, 'formattedAddress']);
       data.forEach(item => {
         Object.keys(item).forEach(key => {
           allColumns.add(key);
@@ -513,7 +517,9 @@ export function useTableState({
       actionStatus,
       bulkMode,
       hydrophobicBulkValue,
+      cellIdBulkValue,
       newGeotabSerial,
+      selectedRows,
       filteredColumns,
       sortedAndFilteredData,
       MANDATORY_COLUMNS,
@@ -536,9 +542,12 @@ export function useTableState({
       setShowHydrophobicModal,
       setShowBulkModal,
       setShowHydrophobicBulkModal,
+      setShowCellIdBulkModal,
       setBulkMode,
       setHydrophobicBulkValue,
+      setCellIdBulkValue,
       setNewGeotabSerial,
+      setSelectedRows,
       setActionStatus,
       setColumnSearchTerm,
       handlePairGeotab,
@@ -562,6 +571,7 @@ export function useTableState({
       showHydrophobicModal,
       showBulkModal,
       showHydrophobicBulkModal,
+      showCellIdBulkModal,
     }
   };
 }

@@ -6,7 +6,7 @@ import * as FileSaver from 'file-saver';
 import * as XLSX from 'xlsx';
 
 import { useTagEventHistory } from '../../hooks/useTagEventHistory';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../contexts/AuthContext';
 import { getMessageTypeName } from '../../constants/messageTypes';
 import { formatDateForAPI, formatTimestampForDisplay, normalizeIsoAssumeUtc } from '../../utils/dateUtils';
 import { apiService } from '../../services/api';
@@ -20,7 +20,6 @@ import { EventColumnSelector } from './EventColumnSelector';
 import { EventDataTable } from './EventDataTable';
 import { EventLocationInfo } from './EventLocationInfo';
 import { EventMap } from './EventMap';
-import { EventViewSelector } from './EventViewSelector';
 import { EventRowMapSync } from './EventRowMapSync';
 import { EventStateDurations } from './EventStateDurations';
 
@@ -32,7 +31,7 @@ export function TagEventHistoryPage() {
   const tag = location.state?.tag || {};
   const { auth } = useAuth();
   const toastRef = useRef<Toast>(null);
-  const dt = useRef<DataTable>(null);
+  const dt = useRef<DataTable<any>>(null);
   const columnSelectorRef = useRef<HTMLDivElement>(null);
   
   // Use lastEventTime as default end time if available
@@ -196,7 +195,7 @@ export function TagEventHistoryPage() {
   const {
     loading: eventLoading,
     error,
-    eventHistory,
+    eventHistory: _eventHistory,
     events,
     hasMore,
     loadMore,
@@ -397,7 +396,7 @@ export function TagEventHistoryPage() {
     
     events.forEach(event => {
       let hasLocation = false;
-      let locationType = 'unknown';
+      let locationType = 'unknown'; // eslint-disable-line @typescript-eslint/no-unused-vars
       
       // Check various location properties
       if ((event.metadata?.props?.latitude && event.metadata?.props?.longitude) ||
@@ -863,7 +862,7 @@ export function TagEventHistoryPage() {
   };
 
   // Safely handle filter callbacks to prevent "filters[field] is undefined" error
-  const safeFilterCallback = (field: string, value: any, index: number) => {
+  const safeFilterCallback = (field: string, value: any, _index: number) => {
     // Create a new filters object with the updated value
     const newFilters = { ...filters };
     

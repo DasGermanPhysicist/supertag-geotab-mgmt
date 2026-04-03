@@ -1,5 +1,28 @@
+// Known fields returned by the Link Labs API for a tag.
+// The index signature preserves compatibility with dynamic/unknown API properties.
 export interface SuperTag {
-  [key: string]: any; // Dynamic properties from API
+  macAddress: string;
+  nodeName?: string;
+  nodeAddress?: string;
+  geotabSerialNumber?: string | null;
+  registrationToken?: string;
+  lastEventTime?: string;
+  batteryStatus?: string | number;
+  motionState?: string | boolean;
+  isLost?: string | boolean;
+  hydrophobic?: string | boolean;
+  locationName?: string;
+  areaId?: string;
+  areaName?: string;
+  zoneName?: string;
+  latitude?: number | string;
+  longitude?: number | string;
+  siteName?: string;
+  siteId?: string;
+  // Geocoded address enrichment
+  formattedAddress?: string;
+  addressData?: Record<string, any>;
+  [key: string]: any;
 }
 
 export interface AuthState {
@@ -51,4 +74,11 @@ export interface TagEventHistory {
 
 export interface MsgTypeMap {
   [key: string]: string;
+}
+
+// Common result type for async operations
+export interface OperationResult {
+  success: boolean;
+  error?: Error;
+  data?: any;
 }

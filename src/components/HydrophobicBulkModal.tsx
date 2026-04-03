@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Upload, Download, X, AlertCircle, CheckCircle2, FileText, Loader2, Droplets } from 'lucide-react';
+import { Upload, Download, X, AlertCircle, CheckCircle2, FileText, Loader2, Droplets, CheckSquare } from 'lucide-react';
 import { sendNotification } from '../services/notifications';
 import { apiService } from '../services/api';
+import { SuperTag } from '../types';
 
 interface HydrophobicBulkModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface HydrophobicBulkModalProps {
   auth: { token?: string; username?: string };
   value: boolean;
   onValueChange: (value: boolean) => void;
+  selectedRows?: SuperTag[];
 }
 
 interface OperationResult {
@@ -24,13 +26,15 @@ export function HydrophobicBulkModal({
   onComplete, 
   auth, 
   value, 
-  onValueChange 
+  onValueChange,
+  selectedRows = []
 }: HydrophobicBulkModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [results, setResults] = useState<OperationResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [sourceMode, setSourceMode] = useState<'selection' | 'csv'>(selectedRows.length > 0 ? 'selection' : 'csv');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadSampleCsv = () => {
@@ -71,76 +75,81 @@ export function HydrophobicBulkModal({
     }
   }, []);
 
-  const processFile = async () => {
-    if (!file || !auth.token) return;
+  const processNodes = async (nodeAddresses: string[]) => {
+    if (!auth.token || nodeAddresses.length === 0) return;
 
     setIsProcessing(true);
     setResults([]);
-    
+    setProgress({ current: 0, total: nodeAddresses.length });
+
+    const opResults: OperationResult[] = [];
+
+    for (let i = 0; i < nodeAddresses.length; i++) {
+      const nodeAddress = nodeAddresses[i];
+      try {
+        if (!nodeAddress) throw new Error('Node address is missing');
+
+        await apiService.setHydrophobic(nodeAddress, value, auth.token!);
+
+        if (auth.username) {
+          await sendNotification({
+            email: auth.username,
+            macAddress: nodeAddress,
+            type: 'hydrophobic',
+            hydrophobicValue: value
+          });
+        }
+
+        opResults.push({ nodeAddress, success: true });
+      } catch (error) {
+        opResults.push({
+          nodeAddress,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      setProgress({ current: i + 1, total: nodeAddresses.length });
+      setResults([...opResults]);
+    }
+
+    setIsProcessing(false);
+    onComplete();
+  };
+
+  const processSelectedRows = async () => {
+    const nodeAddresses = selectedRows
+      .map(row => row.nodeAddress)
+      .filter((addr): addr is string => !!addr);
+    await processNodes(nodeAddresses);
+  };
+
+  const processFile = async () => {
+    if (!file || !auth.token) return;
+
     const reader = new FileReader();
-    
+
     reader.onload = async (e) => {
       const text = e.target?.result as string;
       const lines = text.split('\n').filter(line => line.trim());
       const headers = lines[0].split(',').map(h => h.trim());
-      
+
       if (!headers.includes('nodeAddress')) {
         alert('CSV must have a nodeAddress column');
-        setIsProcessing(false);
         return;
       }
 
       const data = lines.slice(1).map(line => {
         const values = line.split(',').map(v => v.trim());
-        return headers.reduce((obj, header, i) => ({ ...obj, [header]: values[i] }), {});
+        return headers.reduce<Record<string, string>>((obj, header, i) => ({ ...obj, [header]: values[i] }), {});
       });
 
-      setProgress({ current: 0, total: data.length });
-
-      const results: OperationResult[] = [];
-      
-      for (let i = 0; i < data.length; i++) {
-        const row = data[i];
-        try {
-          console.log(`Processing row:`, row);
-          if (!row.nodeAddress) {
-            throw new Error('Node address is missing');
-          }
-          
-          // Use the apiService instead of direct fetch for better error handling
-          await apiService.setHydrophobic(row.nodeAddress, value, auth.token);
-          
-          if (auth.username) {
-            await sendNotification({
-              email: auth.username,
-              macAddress: row.nodeAddress,
-              type: 'hydrophobic',
-              hydrophobicValue: value
-            });
-          }
-          
-          results.push({ nodeAddress: row.nodeAddress, success: true });
-        } catch (error) {
-          console.error(`Error processing row:`, row, error);
-          results.push({ 
-            nodeAddress: row.nodeAddress, 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-        
-        setProgress({ current: i + 1, total: data.length });
-        setResults([...results]);
-      }
-
-      setIsProcessing(false);
-      onComplete();
+      await processNodes(data.map(row => row.nodeAddress));
     };
 
     reader.readAsText(file);
   };
 
-  // If modal is not open, don't render anything
   if (!isOpen) return null;
 
   const successCount = results.filter(r => r.success).length;
@@ -162,25 +171,7 @@ export function HydrophobicBulkModal({
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="flex items-start">
-            <div className="bg-blue-50 text-blue-800 rounded-full p-2 mr-3 flex-shrink-0">
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-2">
-                Upload a CSV file with the following columns:
-                <span className="font-mono block mt-1 bg-gray-50 p-1 rounded text-xs">nodeAddress</span>
-              </p>
-              <button
-                onClick={downloadSampleCsv}
-                className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
-              >
-                <Download className="h-4 w-4" />
-                Download sample CSV
-              </button>
-            </div>
-          </div>
-
+          {/* Value toggle */}
           <div className="flex items-center justify-center space-x-4 bg-gray-50 p-4 rounded-lg">
             <button
               onClick={() => onValueChange(true)}
@@ -206,60 +197,140 @@ export function HydrophobicBulkModal({
             </button>
           </div>
 
-          {!file && !isProcessing ? (
-            <div 
-              className={`border-2 border-dashed rounded-lg p-8 text-center ${
-                dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-              }`}
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept=".csv"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
-              <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-              <p className="text-sm text-gray-600 mb-2">
-                Drag and drop your CSV file here, or
-              </p>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="btn btn-primary"
-              >
-                Browse Files
-              </button>
-            </div>
-          ) : (
-            <div className="bg-gray-50 border rounded-lg p-4">
-              {file && (
-                <div className="flex items-center mb-4">
-                  <FileText className="h-5 w-5 text-gray-500 mr-2" />
-                  <span className="text-sm text-gray-700 font-medium">{file.name}</span>
-                  {!isProcessing && (
-                    <button
-                      onClick={() => setFile(null)}
-                      className="ml-auto text-gray-400 hover:text-gray-600"
+          {/* Source mode tabs */}
+          {!isProcessing && results.length === 0 && (
+            <>
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setSourceMode('selection')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    sourceMode === 'selection'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <CheckSquare className="h-4 w-4" />
+                  Table Selection
+                  {selectedRows.length > 0 && (
+                    <span className="ml-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold px-1">
+                      {selectedRows.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setSourceMode('csv')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    sourceMode === 'csv'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Upload className="h-4 w-4" />
+                  CSV Upload
+                </button>
+              </div>
+
+              {sourceMode === 'selection' ? (
+                <div>
+                  {selectedRows.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <CheckSquare className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No devices selected.</p>
+                      <p className="text-xs mt-1">Use the checkboxes in the table to select devices, then come back here.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="max-h-40 overflow-y-auto border rounded-lg divide-y divide-gray-100">
+                        {selectedRows.filter(r => r.nodeAddress).map((row, i) => (
+                          <div key={i} className="px-3 py-1.5 text-xs font-mono text-gray-600">
+                            {row.nodeAddress} {row.nodeName && <span className="text-gray-400 ml-1">({row.nodeName})</span>}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {selectedRows.filter(r => r.nodeAddress).length} device(s) with node address will be processed.
+                      </p>
+                      <button
+                        onClick={processSelectedRows}
+                        className="w-full btn btn-primary"
+                      >
+                        Process {selectedRows.filter(r => r.nodeAddress).length} Devices
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-start">
+                    <div className="bg-blue-50 text-blue-800 rounded-full p-2 mr-3 flex-shrink-0">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Upload a CSV with column:
+                        <span className="font-mono block mt-1 bg-gray-50 p-1 rounded text-xs">nodeAddress</span>
+                      </p>
+                      <button
+                        onClick={downloadSampleCsv}
+                        className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download sample CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {!file ? (
+                    <div 
+                      className={`border-2 border-dashed rounded-lg p-8 text-center ${
+                        dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
+                      onDragEnter={handleDrag}
+                      onDragOver={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDrop={handleDrop}
                     >
-                      <X className="h-4 w-4" />
-                    </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      />
+                      <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600 mb-2">
+                        Drag and drop your CSV file here, or
+                      </p>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn btn-primary"
+                      >
+                        Browse Files
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border rounded-lg p-4">
+                      <div className="flex items-center mb-4">
+                        <FileText className="h-5 w-5 text-gray-500 mr-2" />
+                        <span className="text-sm text-gray-700 font-medium">{file.name}</span>
+                        <button
+                          onClick={() => setFile(null)}
+                          className="ml-auto text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={processFile}
+                        className="w-full btn btn-primary"
+                      >
+                        Process File
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
-              
-              {!isProcessing && file && (
-                <button
-                  onClick={processFile}
-                  className="w-full btn btn-primary"
-                >
-                  Process File
-                </button>
-              )}
-            </div>
+            </>
           )}
 
           {isProcessing && progress && (

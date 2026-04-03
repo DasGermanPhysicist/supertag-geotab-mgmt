@@ -12,11 +12,36 @@ interface CacheEntry {
 const tagsCache: Record<string, CacheEntry> = {};
 const CACHE_TTL = 60000; // 1 minute in milliseconds
 
-export function useSuperTags(authToken?: string, selectedSite: Site | null = null, sites: Site[] = []) {
+export function useSuperTags(authToken?: string, selectedSite: Site | null = null, sites: Site[] = [], geocodingEnabled: boolean = true) {
   const [data, setData] = useState<SuperTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const enrichTagsWithCellIdStatus = async (tags: SuperTag[]): Promise<SuperTag[]> => {
+    if (!authToken) return tags;
+
+    const batchSize = 10;
+    const enrichedTags: SuperTag[] = [];
+
+    for (let i = 0; i < tags.length; i += batchSize) {
+      const batch = tags.slice(i, i + batchSize);
+      const processedBatch = await Promise.all(
+        batch.map(async (tag) => {
+          if (!tag.nodeAddress) return tag;
+          try {
+            const result = await apiService.getCellIdProcessing(tag.nodeAddress, authToken!);
+            return { ...tag, cellIdProcessingEnabled: result.enabled };
+          } catch {
+            return tag;
+          }
+        })
+      );
+      enrichedTags.push(...processedBatch);
+    }
+
+    return enrichedTags;
+  };
 
   const enrichTagsWithAddress = async (tags: SuperTag[]): Promise<SuperTag[]> => {
     // Create a new array to hold the enriched tags
@@ -92,15 +117,12 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
     const now = Date.now();
     
     if (cachedEntry && (now - cachedEntry.timestamp < CACHE_TTL)) {
-      console.log(`Using cached data for site ${selectedSite.id} (${(now - cachedEntry.timestamp) / 1000}s old)`);
       setData(cachedEntry.data);
       setLoading(false);
       return;
     }
     
     try {
-      console.log(`Fetching fresh data for site ${selectedSite.id}`);
-      
       // Fetch data from both endpoints
       const tagsData = await apiService.fetchTags(selectedSite.id, authToken);
       const tagsWithAreaData = await apiService.fetchTagsWithAreaGrouping(selectedSite.id, authToken);
@@ -109,13 +131,12 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
       const flattenedAreaTags: SuperTag[] = [];
       tagsWithAreaData.forEach(areaData => {
         if (areaData.tags && Array.isArray(areaData.tags)) {
-          areaData.tags.forEach(tag => {
+          areaData.tags.forEach((tag: any) => {
             // Extract the tag data from inside the area structure
             if (tag && tag.assetInfo && tag.assetInfo.metadata && tag.assetInfo.metadata.props) {
               // Add area ID and name directly to tag properties for easier access
               const tagWithArea = {
                 ...tag,
-                // Ensure area properties are included in the tag itself
                 areaId: areaData.areaId,
                 areaName: areaData.areaName,
                 ...tag.assetInfo.metadata.props
@@ -134,14 +155,16 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         );
         
         if (matchingAreaTag) {
-          // Create a new object with both sets of properties, prioritizing area data
           return { ...tag, ...matchingAreaTag };
         }
         return tag;
       });
       
-      // Enrich the data with address information
-      const enrichedData = await enrichTagsWithAddress(mergedData);
+      // Enrich with CellID processing status
+      const withCellId = await enrichTagsWithCellIdStatus(mergedData);
+
+      // Enrich the data with address information (only if geocoding is enabled)
+      const enrichedData = geocodingEnabled ? await enrichTagsWithAddress(withCellId) : withCellId;
       
       // Update the cache
       tagsCache[cacheKey] = {
@@ -151,7 +174,6 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
       
       setData(enrichedData);
     } catch (err) {
-      console.error('Fetch tags error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tags');
     } finally {
       setLoading(false);
@@ -169,14 +191,12 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
 
     // For fetching all sites, we'll check if we have all sites cached recently
     const now = Date.now();
-    const cachedSiteIds = new Set(Object.keys(tagsCache));
     const allSitesCached = sites.every(site => {
       const cacheEntry = tagsCache[site.id];
       return cacheEntry && (now - cacheEntry.timestamp < CACHE_TTL);
     });
     
     if (allSitesCached) {
-      console.log(`Using cached data for all ${sites.length} sites`);
       
       // Combine all cached site data
       const allCachedTags: SuperTag[] = [];
@@ -203,14 +223,11 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         // Check if this specific site is cached
         const cacheEntry = tagsCache[site.id];
         if (cacheEntry && (now - cacheEntry.timestamp < CACHE_TTL)) {
-          console.log(`Using cached data for site ${site.id} (${(now - cacheEntry.timestamp) / 1000}s old)`);
           allTags.push(...cacheEntry.data);
           continue;
         }
         
         try {
-          console.log(`Fetching fresh data for site ${site.id}`);
-          
           // Fetch data from both endpoints
           const siteTags = await apiService.fetchTags(site.id, authToken);
           const siteTagsWithArea = await apiService.fetchTagsWithAreaGrouping(site.id, authToken);
@@ -219,13 +236,11 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
           const flattenedAreaTags: SuperTag[] = [];
           siteTagsWithArea.forEach(areaData => {
             if (areaData.tags && Array.isArray(areaData.tags)) {
-              areaData.tags.forEach(tag => {
+              areaData.tags.forEach((tag: any) => {
                 // Extract the tag data from inside the area structure
                 if (tag && tag.assetInfo && tag.assetInfo.metadata && tag.assetInfo.metadata.props) {
-                  // Add area ID and name directly to tag properties for easier access
                   const tagWithArea = {
                     ...tag,
-                    // Ensure area properties are included in the tag itself
                     areaId: areaData.areaId,
                     areaName: areaData.areaName,
                     ...tag.assetInfo.metadata.props
@@ -257,8 +272,11 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
             siteId: site.id
           }));
           
-          // Enrich with address info
-          const enrichedSiteTags = await enrichTagsWithAddress(tagsWithSite);
+          // Enrich with CellID processing status
+          const withCellId = await enrichTagsWithCellIdStatus(tagsWithSite);
+
+          // Enrich with address info (only if geocoding is enabled)
+          const enrichedSiteTags = geocodingEnabled ? await enrichTagsWithAddress(withCellId) : withCellId;
           
           // Update the cache for this site
           tagsCache[site.id] = {
@@ -272,17 +290,19 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         }
       }
 
-      // Log the count of tags fetched
-      console.log(`Fetched ${allTags.length} tags across ${sites.length} sites`);
       setData(allTags);
     } catch (err) {
-      console.error('Error in fetchAllSiteTags:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch tags from all sites');
     } finally {
       setLoading(false);
       setLoadingProgress(null);
     }
   };
+
+  // Clear cache when geocodingEnabled changes so data gets re-enriched
+  useEffect(() => {
+    Object.keys(tagsCache).forEach(key => delete tagsCache[key]);
+  }, [geocodingEnabled]);
 
   useEffect(() => {
     if (authToken) {
@@ -292,7 +312,7 @@ export function useSuperTags(authToken?: string, selectedSite: Site | null = nul
         fetchAllSiteTags();
       }
     }
-  }, [selectedSite, sites.length, authToken]);
+  }, [selectedSite, sites.length, authToken, geocodingEnabled]);
 
   const refreshData = () => {
     // For refresh, we'll clear the cache entries for the relevant sites

@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginForm } from './components/LoginForm';
 import { ErrorBanner } from './components/ErrorBanner';
 import { AuthenticatedApp } from './components/AuthenticatedApp';
 import { TagEventHistoryPage } from './components/TagEventHistory';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from './contexts/AuthContext';
 import { LoadingSpinner } from './components/LoadingSpinner';
 
 // PrimeReact
 import { PrimeReactProvider } from 'primereact/api';
 
 function App() {
-  const { auth, login, logout } = useAuth();
+  const { auth, login } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
 
   // Simulate initial load to check auth status
@@ -25,24 +24,17 @@ function App() {
   }, []);
 
   const handleLogin = async (username: string, password: string) => {
-    setLoading(true);
     setError(null);
     
     try {
       const result = await login(username, password);
       
       if (!result.success) {
-        setError(result.error);
+        setError(result.error ?? 'Authentication failed');
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const handleLogout = () => {
-    logout();
   };
 
   if (initializing) {
@@ -70,7 +62,7 @@ function App() {
             <Routes>
               <Route 
                 path="/" 
-                element={<AuthenticatedApp auth={auth} onLogout={handleLogout} />} 
+                element={<AuthenticatedApp />} 
               />
               <Route 
                 path="/event-history/:nodeAddress" 
